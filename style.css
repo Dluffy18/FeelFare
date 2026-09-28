@@ -462,13 +462,13 @@ body {
 }
 
 .sidebar-panel.route-compact-mode .app-header {
-  max-height: 0;
-  opacity: 0;
-  padding-top: 0;
-  padding-bottom: 0;
-  border-bottom: none;
-  overflow: hidden;
-  pointer-events: none;
+  display: flex !important;
+  max-height: none !important;
+  opacity: 1 !important;
+  padding: 14px 20px 10px !important;
+  border-bottom: 1px solid rgba(241, 245, 249, 0.9) !important;
+  overflow: visible !important;
+  pointer-events: auto !important;
 }
 
 #route-inputs-section {
@@ -1739,6 +1739,11 @@ input:checked+.slider::before {
 
   .sidebar-panel.route-compact-mode .sidebar-footer {
     display: block !important;
+  }
+
+  .sidebar-panel.route-compact-mode .app-header {
+    display: flex !important;
+    padding: 8px 18px 10px !important;
   }
 
   .app-header {
