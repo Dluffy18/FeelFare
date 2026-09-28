@@ -1256,6 +1256,57 @@ recalculateFare();
     }
   });
 
+  // Welcome & User Guide Modal Handlers
+  const guideModal = document.getElementById('guide-modal');
+  const closeGuideModal = (markSeen = false) => {
+    if (!guideModal) return;
+    const dontShow = document.getElementById('chk-dont-show-guide')?.checked;
+    if (dontShow || markSeen) {
+      try {
+        localStorage.setItem('feelfare_guide_seen', 'true');
+      } catch (e) {
+        /* ignore */
+      }
+    }
+    guideModal.style.display = 'none';
+  };
+
+  const openGuideModal = () => {
+    if (guideModal) {
+      guideModal.style.display = 'flex';
+    }
+  };
+
+  document.getElementById('btn-open-guide')?.addEventListener('click', openGuideModal);
+  document.getElementById('btn-close-guide')?.addEventListener('click', () => closeGuideModal(false));
+  document.getElementById('btn-got-it-guide')?.addEventListener('click', () => closeGuideModal(true));
+
+  // Close guide on backdrop overlay click
+  guideModal?.addEventListener('click', (e) => {
+    if (e.target === guideModal) {
+      closeGuideModal(false);
+    }
+  });
+
+  // Close guide on Escape key press
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && guideModal && guideModal.style.display === 'flex') {
+      closeGuideModal(false);
+    }
+  });
+
+  // Auto-display guide on first visit
+  try {
+    const hasSeenGuide = localStorage.getItem('feelfare_guide_seen');
+    if (!hasSeenGuide) {
+      setTimeout(() => {
+        openGuideModal();
+      }, 420);
+    }
+  } catch (err) {
+    console.warn('localStorage not accessible for guide preference:', err);
+  }
+
   // Fuel Tier Dropdown Change Listener
   document.getElementById('cfg-fuel-tier')?.addEventListener('change', (e) => {
     updateTierPreview(e.target.value);
