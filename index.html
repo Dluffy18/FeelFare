@@ -34,7 +34,7 @@
     crossorigin="anonymous"></script>
 
   <!-- App Stylesheet with cache-busting -->
-  <link rel="stylesheet" href="style.css?v=6">
+  <link rel="stylesheet" href="style.css?v=12">
 </head>
 
 <body>
@@ -59,51 +59,40 @@
         </button>
       </div>
 
-      <!-- Waypoints / Address Input Card (Compact Connected Style) -->
+      <!-- Waypoints / Address Input Card (Modern Ride-Hailing Style) -->
       <section class="control-section route-inputs-card compact-route-card" id="route-inputs-section">
-        <div class="compact-route-layout">
-          <!-- Left Stem: Pin A, Route Connector Line, Pin B -->
-          <div class="route-stem-column">
-            <div class="pin-indicator pickup-pin">
-              <span>A</span>
+        <div class="search-inputs-wrapper">
+          <!-- Solid vertical stem connecting origin circle and destination square -->
+          <div class="route-connector-line" aria-hidden="true"></div>
+
+          <!-- Origin Card (Top) -->
+          <div class="route-input-row box-pickup">
+            <div class="route-input-icon origin-icon" aria-hidden="true">
+              <span class="icon-inner-dot"></span>
             </div>
-            <div class="route-stem-line"></div>
-            <div class="pin-indicator dropoff-pin">
-              <span>B</span>
-            </div>
+            <input type="text" id="pickup-search" class="compact-address-input"
+              placeholder="Enter location" autocomplete="off" spellcheck="false">
+            <button id="btn-clear-pickup" class="clear-btn" title="Clear pickup" style="display:none;"
+              type="button">&times;</button>
+            <div id="pickup-results" class="search-results-dropdown"></div>
           </div>
 
-          <!-- Right Inputs: Stacked Cards with Floating Overlapping Swap Button -->
-          <div class="route-inputs-stacked">
-            <!-- Box A: Pickup -->
-            <div class="compact-input-box box-pickup">
-              <span class="compact-sublabel">From</span>
-              <div class="input-inner">
-                <input type="text" id="pickup-search" class="compact-address-input"
-                  placeholder="Search destination..." autocomplete="off">
-                <button id="btn-clear-pickup" class="clear-btn" title="Clear pickup" style="display:none;"
-                  type="button">&times;</button>
-              </div>
-              <div id="pickup-results" class="search-results-dropdown"></div>
-            </div>
+          <!-- Floating Overlapping Swap Button -->
+          <button id="btn-swap-locations" class="compact-swap-btn" title="Swap pickup & drop-off"
+            aria-label="Swap Locations" type="button">
+            <i class="ph-bold ph-arrows-down-up"></i>
+          </button>
 
-            <!-- Floating Overlapping Swap Button -->
-            <button id="btn-swap-locations" class="compact-swap-btn" title="Swap pickup & drop-off"
-              aria-label="Swap Locations" type="button">
-              <i class="ph-bold ph-arrows-down-up"></i>
-            </button>
-
-            <!-- Box B: Dropoff -->
-            <div class="compact-input-box box-dropoff">
-              <span class="compact-sublabel">DROPOFF</span>
-              <div class="input-inner">
-                <input type="text" id="dropoff-search" class="compact-address-input"
-                  placeholder="Search destination..." autocomplete="off">
-                <button id="btn-clear-dropoff" class="clear-btn" title="Clear drop-off" style="display:none;"
-                  type="button">&times;</button>
-              </div>
-              <div id="dropoff-results" class="search-results-dropdown"></div>
+          <!-- Destination Card (Bottom) -->
+          <div class="route-input-row box-dropoff">
+            <div class="route-input-icon destination-icon" aria-hidden="true">
+              <span class="icon-inner-square"></span>
             </div>
+            <input type="text" id="dropoff-search" class="compact-address-input"
+              placeholder="Enter destination" autocomplete="off" spellcheck="false">
+            <button id="btn-clear-dropoff" class="clear-btn" title="Clear drop-off" style="display:none;"
+              type="button">&times;</button>
+            <div id="dropoff-results" class="search-results-dropdown"></div>
           </div>
         </div>
       </section>

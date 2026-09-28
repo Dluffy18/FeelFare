@@ -208,6 +208,7 @@ body {
   padding: 0;
   box-shadow: none;
   transition: all var(--transition-normal);
+  position: relative;
 }
 
 .top-search-overlay .box-pickup {
@@ -218,37 +219,11 @@ body {
   z-index: 10;
 }
 
-.top-search-overlay .compact-input-box {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(226, 232, 240, 0.9);
-  border-radius: var(--radius-md);
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12), 0 1px 3px rgba(15, 23, 42, 0.06);
-}
-
-.top-search-overlay .compact-input-box:focus-within {
-  background: #ffffff;
-  border-color: var(--primary-light);
-  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.22), 0 0 0 3px var(--primary-glow);
-  z-index: 50 !important;
-}
-
-.top-search-overlay .route-stem-column {
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-radius: var(--radius-pill);
-  padding: 6px 3px;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.7);
-}
-
 .top-search-overlay .compact-swap-btn {
-  background: #ffffff;
-  border: 1px solid rgba(203, 213, 225, 0.9);
-  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.16);
-  z-index: 60;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  z-index: 70;
 }
 
 .top-search-overlay .compact-route-bar {
@@ -605,122 +580,109 @@ body {
   box-shadow: var(--shadow-sm);
 }
 
-.compact-route-layout {
+/* Search Inputs Wrapper & Stem */
+.search-inputs-wrapper {
+  position: relative;
   display: flex;
-  align-items: stretch;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Solid vertical stem connecting origin circle and destination square */
+.route-connector-line {
+  position: absolute;
+  left: 20.75px;
+  top: 29px;
+  height: 38px;
+  width: 2.5px;
+  background: #111827;
+  z-index: 60;
+  pointer-events: none;
+}
+
+/* Individual Route Input Row Card */
+.route-input-row {
+  position: relative;
+  display: flex;
+  align-items: center;
   gap: 12px;
-}
-
-/* Vertical Connected Stem */
-.route-stem-column {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 0;
-  width: 22px;
-  flex-shrink: 0;
-}
-
-.pin-indicator {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.68rem;
-  font-weight: 800;
-  color: #ffffff;
-  box-shadow: var(--shadow-xs);
-  flex-shrink: 0;
-}
-
-.pickup-pin {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
-}
-
-.dropoff-pin {
-  background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
-}
-
-.route-stem-line {
-  flex: 1;
-  width: 2px;
-  background: repeating-linear-gradient(to bottom,
-      #cbd5e1 0,
-      #cbd5e1 4px,
-      transparent 4px,
-      transparent 8px);
-  margin: 6px 0;
-}
-
-/* Input Boxes Container */
-.route-inputs-stacked {
-  flex: 1;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.box-pickup {
-  z-index: 20;
-}
-
-.box-dropoff {
-  z-index: 10;
-}
-
-.compact-input-box {
-  position: relative;
-  background: var(--surface-subtle);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-md);
-  padding: 7px 44px 7px 12px;
+  background: #f1f3f5;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 8px;
+  height: 44px;
+  padding: 0 46px 0 14px;
+  box-shadow: 0 3px 12px rgba(15, 23, 42, 0.12), 0 1px 3px rgba(15, 23, 42, 0.06);
   transition: all var(--transition-fast);
 }
 
-.compact-input-box:focus-within {
+.route-input-row.box-pickup {
+  z-index: 20;
+}
+
+.route-input-row.box-dropoff {
+  z-index: 10;
+}
+
+.route-input-row:focus-within {
   background: #ffffff;
-  border-color: var(--primary-light);
-  box-shadow: 0 0 0 3px var(--primary-glow);
+  border-color: rgba(16, 185, 129, 0.45);
+  box-shadow: 0 2px 10px rgba(16, 185, 129, 0.12), 0 0 0 2px rgba(16, 185, 129, 0.2);
   z-index: 50 !important;
 }
 
-.compact-sublabel {
-  display: block;
-  font-size: 0.65rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-  margin-bottom: 2px;
-}
-
-.input-inner {
+/* Origin (Circle) & Destination (Square) Icons */
+.route-input-icon {
+  width: 16px;
+  height: 16px;
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  flex-shrink: 0;
+  z-index: 2;
+  position: relative;
+  background: #111827;
 }
 
+.origin-icon {
+  border-radius: 50%;
+}
+
+.origin-icon .icon-inner-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #ffffff;
+  display: block;
+}
+
+.destination-icon {
+  border-radius: 2px;
+}
+
+.destination-icon .icon-inner-square {
+  width: 4px;
+  height: 4px;
+  border-radius: 1px;
+  background: #ffffff;
+  display: block;
+}
+
+/* Address Input Field */
 .compact-address-input {
   flex: 1;
   border: none;
   background: transparent;
-  padding: 4px 0;
+  padding: 8px 0;
   font-family: var(--font-family);
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text-main);
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: #111827;
   outline: none;
   min-width: 0;
 }
 
 .compact-address-input::placeholder {
-  color: var(--text-subtle);
+  color: #4b5563;
   font-weight: 500;
 }
 
@@ -757,6 +719,11 @@ body {
   line-height: 1;
   cursor: pointer;
   padding: 0 4px;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
   transition: color var(--transition-fast);
 }
 
@@ -767,29 +734,34 @@ body {
 /* Floating Overlapping Swap Button */
 .compact-swap-btn {
   position: absolute;
-  right: 12px;
+  right: 10px;
   top: 50%;
   transform: translateY(-50%);
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background: #ffffff;
-  border: 1px solid var(--border-light);
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
+  background: transparent;
+  border: none;
+  box-shadow: none;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--text-secondary);
-  font-size: 0.95rem;
+  font-size: 1.35rem;
   cursor: pointer;
-  z-index: 60;
+  z-index: 70;
   transition: all var(--transition-fast);
 }
 
+.compact-swap-btn i {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
 .compact-swap-btn:hover {
-  background: var(--primary-subtle);
+  background: rgba(16, 185, 129, 0.12);
   color: var(--primary);
-  border-color: var(--primary-light);
+  border-color: transparent;
   transform: translateY(-50%) rotate(180deg);
 }
 
