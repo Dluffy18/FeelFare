@@ -825,7 +825,6 @@ const MATI_LOCAL_PLACES = [
   { name: "Areca's", address: "Areca's, Limatoc Street, Sainz, Mati, Davao Oriental", lat: 6.95063, lng: 126.22191, tags: ['arecas', 'cafe', 'restaurant', 'limatoc'] },
   { name: 'Don Luis Village (Central)', address: 'Don Luis Village, Madang, Central, Mati, Davao Oriental', lat: 6.95729, lng: 126.20951, tags: ['don luis', 'don luis village', 'madang', 'central', 'village', 'subdivision'] },
   { name: 'Don Luis Village (Dahican)', address: 'Don Luis Village, Estampa, Dahican, Mati, Davao Oriental', lat: 6.94220, lng: 126.24760, tags: ['don luis', 'don luis village', 'dahican', 'estampa', 'village', 'subdivision'] },
-  { name: 'Davao Oriental Electric Cooperative Village', address: 'Davao Oriental Electric Cooperative Village, Central, Mati, Davao Oriental', lat: 6.95533, lng: 126.20081, tags: ['doreco', 'doreco village', 'davao oriental electric cooperative', 'electric cooperative', 'cooperative', 'village'] },
 
   // All 26 Official Barangays of City of Mati (OpenStreetMap Verified Ground Truth)
   { name: 'Barangay Central', address: 'Central, Mati, Davao Oriental', lat: 6.96125, lng: 126.20700, tags: ['central', 'poblacion', 'downtown'] },
@@ -887,16 +886,16 @@ async function searchAddresses(query) {
       score += 400;
     }
 
-    // B. Exact / Prefix Match on Aliases / Tags (e.g. "provincial hospital", "dopmc", "camillus", "don luis", "doreco")
+    // B. Exact / Prefix Match on Aliases / Tags (e.g. "provincial hospital", "dopmc", "camillus", "don luis")
     if (tags.length > 0) {
       if (tags.some(t => t === cleanQ)) {
-        score += 1200;
+        score += 650;
       } else if (tags.some(t => t.startsWith(cleanQ))) {
-        score += 500;
+        score += 300;
       } else if (tags.some(t => cleanQ.startsWith(t))) {
-        score += 350;
+        score += 250;
       } else if (tags.some(t => hasWordBoundaryMatch(t, cleanQ))) {
-        score += 200;
+        score += 150;
       }
     }
 
@@ -978,21 +977,6 @@ async function searchAddresses(query) {
             const props = f.properties || {};
             if (props.countrycode && props.countrycode.toUpperCase() !== 'PH') return false;
             if (props.country && props.country !== 'Philippines') return false;
-
-            // Exclude external municipalities (e.g. Tarragona) or irrelevant geocoded places
-            const rawName = (props.name || '').trim();
-            const lowerName = rawName.toLowerCase();
-            const lowerStreet = (props.street || '').toLowerCase();
-            const lowerDistrict = (props.district || props.locality || '').toLowerCase();
-            const lowerCity = (props.city || '').toLowerCase();
-
-            if (lowerCity.includes('tarragona') || lowerDistrict.includes('tarragona') || lowerStreet.includes('tarragona')) {
-              return false;
-            }
-            if (lowerName.includes('doreco') && (lowerDistrict.includes('tamia') || lowerStreet.includes('tamia') || lowerStreet.includes('guadalupe'))) {
-              return false;
-            }
-
             return true;
           })
           .map(f => {
@@ -1067,11 +1051,7 @@ async function searchAddresses(query) {
           .filter(item => {
             const lat = parseFloat(item.lat);
             const lng = parseFloat(item.lon);
-            if (!isWithinMati(lat, lng)) return false;
-            const text = (item.display_name || '').toLowerCase();
-            if (text.includes('tarragona')) return false;
-            if (text.includes('doreco') && (text.includes('tamia') || text.includes('guadalupe'))) return false;
-            return true;
+            return isWithinMati(lat, lng);
           })
           .map(item => ({
             label: item.display_name.split(',').slice(0, 3).join(', ') + ', Mati, Davao Oriental',
@@ -1086,12 +1066,7 @@ async function searchAddresses(query) {
   }
 
   // Combine results and sort strictly by relevance score descending
-  const combined = [...localMatches, ...apiMatches].filter(item => {
-    const text = (item.label || '').toLowerCase();
-    if (text.includes('tarragona')) return false;
-    if (text.includes('doreco') && (text.includes('tamia') || text.includes('guadalupe'))) return false;
-    return true;
-  });
+  const combined = [...localMatches, ...apiMatches];
   combined.sort((a, b) => (b.score || 0) - (a.score || 0));
 
   const unique = [];
