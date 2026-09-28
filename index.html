@@ -34,7 +34,7 @@
     crossorigin="anonymous"></script>
 
   <!-- App Stylesheet with cache-busting -->
-  <link rel="stylesheet" href="style.css?v=30">
+  <link rel="stylesheet" href="style.css?v=31">
 </head>
 
 <body>
@@ -342,15 +342,15 @@
             </li>
           </ul>
         </div>
+      </div>
 
-        <!-- Modal Footer Actions -->
-        <div class="guide-footer-actions">
-          <label class="guide-checkbox-label">
-            <input type="checkbox" id="chk-dont-show-guide">
-            <span>Don't show this guide on startup again</span>
-          </label>
-          <button id="btn-got-it-guide" type="button" class="btn-primary">Got it, Let's Go!</button>
-        </div>
+      <!-- Pinned Modal Footer Actions (Always visible & clickable) -->
+      <div class="modal-footer guide-modal-footer">
+        <label class="guide-checkbox-label">
+          <input type="checkbox" id="chk-dont-show-guide">
+          <span>Don't show this guide on startup again</span>
+        </label>
+        <button id="btn-got-it-guide" type="button" class="btn-primary">Got it, Let's Go!</button>
       </div>
     </div>
   </div>
