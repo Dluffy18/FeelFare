@@ -30,10 +30,11 @@
 
   <!-- Phosphor Icons for rich modern UI with Subresource Integrity (SRI) -->
   <script src="https://unpkg.com/@phosphor-icons/web@2.1.1/src/index.js"
-    integrity="sha384-cPFV+/abYd3INVFHPmSKpBmcnH+Q+bTZW7dv/EiuShUNPkHyFmRF8PsL7Ibfvunk" crossorigin="anonymous"></script>
+    integrity="sha384-cPFV+/abYd3INVFHPmSKpBmcnH+Q+bTZW7dv/EiuShUNPkHyFmRF8PsL7Ibfvunk"
+    crossorigin="anonymous"></script>
 
-  <!-- App Stylesheet -->
-  <link rel="stylesheet" href="style.css">
+  <!-- App Stylesheet with cache-busting -->
+  <link rel="stylesheet" href="style.css?v=2">
 </head>
 
 <body>
@@ -66,7 +67,7 @@
       <header class="app-header">
         <div class="brand">
           <div>
-            <h1 class="brand-title">FeelFair</h1>
+            <h1 class="brand-title">FeelFare</h1>
             <p class="brand-subtitle">City of Mati Pedicab Tariff</p>
           </div>
         </div>
@@ -279,8 +280,8 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
-  <!-- App JS -->
-  <script src="app.js"></script>
+  <!-- App JS with cache-busting -->
+  <script src="app.js?v=2"></script>
 </body>
 
 </html>
