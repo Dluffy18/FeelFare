@@ -210,6 +210,14 @@ body {
   transition: all var(--transition-normal);
 }
 
+.top-search-overlay .box-pickup {
+  z-index: 20;
+}
+
+.top-search-overlay .box-dropoff {
+  z-index: 10;
+}
+
 .top-search-overlay .compact-input-box {
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(14px);
@@ -223,6 +231,7 @@ body {
   background: #ffffff;
   border-color: var(--primary-light);
   box-shadow: 0 4px 16px rgba(16, 185, 129, 0.22), 0 0 0 3px var(--primary-glow);
+  z-index: 50 !important;
 }
 
 .top-search-overlay .route-stem-column {
@@ -656,6 +665,14 @@ body {
   gap: 10px;
 }
 
+.box-pickup {
+  z-index: 20;
+}
+
+.box-dropoff {
+  z-index: 10;
+}
+
 .compact-input-box {
   position: relative;
   background: var(--surface-subtle);
@@ -669,6 +686,7 @@ body {
   background: #ffffff;
   border-color: var(--primary-light);
   box-shadow: 0 0 0 3px var(--primary-glow);
+  z-index: 50 !important;
 }
 
 .compact-sublabel {
@@ -787,10 +805,10 @@ body {
   background: #ffffff;
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.18), 0 4px 10px rgba(15, 23, 42, 0.08);
   max-height: 240px;
   overflow-y: auto;
-  z-index: 100;
+  z-index: 1000;
   display: none;
 }
 
