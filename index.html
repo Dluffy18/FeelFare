@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#064e3b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>CalFair - Motorized Pedicab Fare & Route Calculator</title>
+  <meta name="description"
+    content="Calculate accurate motorized pedicab and tricycle fares based on official local distance, point-to-point road routing, passenger count, and municipal tariff policies.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+
+  <!-- Content Security Policy (Defense-in-depth XSS & Injection Prevention) -->
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self' https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; font-src 'self' https://fonts.gstatic.com https://unpkg.com data:; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.tile.openstreetmap.fr https://server.arcgisonline.com https://unpkg.com; connect-src 'self' https://unpkg.com https://router.project-osrm.org http://router.project-osrm.org https://photon.komoot.io https://nominatim.openstreetmap.org; object-src 'none'; base-uri 'self';">
+
+  <!-- Google Fonts: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet">
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+
+  <!-- Phosphor Icons for rich modern UI with Subresource Integrity (SRI) -->
+  <script src="https://unpkg.com/@phosphor-icons/web@2.1.1/src/index.js"
+    integrity="sha384-cPFV+/abYd3INVFHPmSKpBmcnH+Q+bTZW7dv/EiuShUNPkHyFmRF8PsL7Ibfvunk" crossorigin="anonymous"></script>
+
+  <!-- App Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <div class="app-layout">
+    <!-- Map Container (Full viewport) -->
+    <main id="map-container">
+      <div id="map"></div>
+
+      <!-- Quick Floating Map Controls -->
+      <div class="map-floating-bar">
+        <button id="btn-click-mode-pickup" class="map-action-btn" title="Use Current Location"
+          aria-label="Use Current Location">
+          <i class="ph-bold ph-map-pin"></i>
+          <span>Current Location</span>
+        </button>
+        <button id="btn-recenter" class="map-action-btn" title="Recenter Route">
+          <i class="ph-bold ph-arrows-out-cardinal"></i>
+        </button>
+      </div>
+    </main>
+
+    <!-- Sidebar / Drawer Control Panel -->
+    <aside class="sidebar-panel" id="sidebar-panel">
+      <!-- Drawer Handle (for mobile) -->
+      <div class="drawer-handle" id="drawer-handle">
+        <span class="handle-bar"></span>
+      </div>
+
+      <!-- Header Section -->
+      <header class="app-header">
+        <div class="brand">
+          <div>
+            <h1 class="brand-title">FeelFair</h1>
+            <p class="brand-subtitle">City of Mati Pedicab Tariff</p>
+          </div>
+        </div>
+        <button id="btn-open-settings" class="icon-button" title="Fare Tariff Settings" aria-label="Tariff Settings">
+          <i class="ph-bold ph-gear-six"></i>
+        </button>
+      </header>
+
+      <!-- Scrollable Main Controls -->
+      <div class="sidebar-content">
+
+        <!-- Compact Route Active Bar (Visible when inputs are hidden) -->
+        <div class="compact-route-bar" id="compact-route-bar" style="display: none;">
+          <div class="compact-route-tag">
+            <span id="compact-route-label">DISTANCE: 0.00 KM</span>
+          </div>
+          <button id="btn-edit-route" class="btn-edit-route" type="button" title="Edit pickup & drop-off locations">
+            <i class="ph-bold ph-pencil-simple"></i>
+            <span>Edit Location</span>
+          </button>
+        </div>
+
+        <!-- Waypoints / Address Input Card (Compact Connected Style) -->
+        <section class="control-section route-inputs-card compact-route-card" id="route-inputs-section">
+          <div class="compact-route-layout">
+            <!-- Left Stem: Pin A, Route Connector Line, Pin B -->
+            <div class="route-stem-column">
+              <div class="pin-indicator pickup-pin">
+                <span>A</span>
+              </div>
+              <div class="route-stem-line"></div>
+              <div class="pin-indicator dropoff-pin">
+                <span>B</span>
+              </div>
+            </div>
+
+            <!-- Right Inputs: Stacked Cards with Floating Overlapping Swap Button -->
+            <div class="route-inputs-stacked">
+              <!-- Box A: Pickup -->
+              <div class="compact-input-box box-pickup">
+                <span class="compact-sublabel">From</span>
+                <div class="input-inner">
+                  <input type="text" id="pickup-search" class="compact-address-input"
+                    placeholder="Search destination..." autocomplete="off">
+                  <button id="btn-clear-pickup" class="clear-btn" title="Clear pickup" style="display:none;"
+                    type="button">&times;</button>
+                </div>
+                <div id="pickup-results" class="search-results-dropdown"></div>
+              </div>
+
+              <!-- Floating Overlapping Swap Button -->
+              <button id="btn-swap-locations" class="compact-swap-btn" title="Swap pickup & drop-off"
+                aria-label="Swap Locations" type="button">
+                <i class="ph-bold ph-arrows-down-up"></i>
+              </button>
+
+              <!-- Box B: Dropoff -->
+              <div class="compact-input-box box-dropoff">
+                <span class="compact-sublabel">DROPOFF</span>
+                <div class="input-inner">
+                  <input type="text" id="dropoff-search" class="compact-address-input"
+                    placeholder="Search destination..." autocomplete="off">
+                  <button id="btn-clear-dropoff" class="clear-btn" title="Clear drop-off" style="display:none;"
+                    type="button">&times;</button>
+                </div>
+                <div id="dropoff-results" class="search-results-dropdown"></div>
+              </div>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- Route Metrics Summary (Appears once route is calculated) -->
+        <section id="route-metrics" class="route-metrics-card">
+          <div class="metric-item">
+            <span class="metric-title">Distance</span>
+            <strong id="metric-distance">0.00 km</strong>
+          </div>
+          <div class="metric-separator"></div>
+          <div class="metric-item">
+            <span class="metric-title">Time</span>
+            <strong id="metric-duration">0 mins</strong>
+          </div>
+          <div class="metric-separator"></div>
+          <div class="metric-item metric-fare-highlight">
+            <span class="metric-title">Fare Price</span>
+            <strong id="metric-fare-display" class="metric-fare-val">₱0.00</strong>
+          </div>
+        </section>
+
+        <!-- Trip Options & Surcharges -->
+        <section class="control-section options-section">
+
+          <!-- Statutory 20% Discount -->
+          <div class="option-row">
+            <div class="option-info">
+              <div>
+                <span class="option-title">Senior / Student / PWD</span>
+                <span class="option-hint">Mandatory 20% discount on fare</span>
+              </div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="toggle-discount">
+              <span class="slider round"></span>
+            </label>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- Anchored Bottom Live Fare Calculation Card (Always Visible) -->
+      <footer class="sidebar-footer">
+        <section class="control-section fare-summary-card">
+          <div class="fare-header">
+            <span class="fare-badge">Tariff Estimate</span>
+            <button type="button" id="trip-badge" class="trip-mode-badge" title="Click to change Fuel Tier"
+              aria-label="Change Fuel Tariff Tier">
+              <span id="trip-badge-text">Tier 1</span>
+              <i class="ph-bold ph-caret-down"></i>
+            </button>
+          </div>
+
+          <div class="fare-total-display">
+            <span class="total-currency" id="fare-currency">₱</span>
+            <span class="total-amount" id="total-fare-amount">0.00</span>
+          </div>
+
+          <!-- Breakdown Line Items -->
+          <div class="fare-breakdown" id="fare-breakdown">
+            <div class="breakdown-line">
+              <span id="label-base-fare">Base Fare (First 3.0 km)</span>
+              <span id="val-base-fare">₱0.00</span>
+            </div>
+            <div class="breakdown-line" id="line-extra-dist" style="display:none;">
+              <span id="label-extra-dist">Extra Distance (0.0 km × ₱2/km)</span>
+              <span id="val-extra-dist">₱0.00</span>
+            </div>
+            <div class="breakdown-line discount-line" id="line-discount" style="display:none;">
+              <span>Senior/Student/PWD Discount (20%)</span>
+              <span id="val-discount">-₱0.00</span>
+            </div>
+          </div>
+        </section>
+      </footer>
+    </aside>
+  </div><!-- /.app-layout -->
+  <div class="modal-overlay" id="settings-modal" style="display:none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <i class="ph-duotone ph-sliders-horizontal"></i>
+          <h3>Tariff & Fare Settings</h3>
+        </div>
+        <button id="btn-close-settings" class="modal-close-btn" title="Close Settings" aria-label="Close Settings">
+          <i class="ph-bold ph-x"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <p class="modal-desc">Select the prevailing fuel price tier to automatically calibrate official base fare and
+          succeeding km rates based on municipal tariff guidelines.</p>
+
+        <div class="form-grid">
+          <div class="form-group full-width">
+            <label for="cfg-fuel-tier">Prevailing Fuel Price Tier</label>
+            <select id="cfg-fuel-tier" class="tier-select-dropdown">
+              <option value="1">Tier 1</option>
+              <option value="2">Tier 2</option>
+              <option value="3">Tier 3</option>
+              <option value="4">Tier 4</option>
+              <option value="5">Tier 5</option>
+              <option value="6">Tier 6</option>
+              <option value="7">Tier 7</option>
+              <option value="8">Tier 8</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Dynamic Tier Details Preview Card -->
+        <div id="tier-preview-card" class="tier-preview-card">
+          <div class="tier-preview-header">
+            <i class="ph-bold ph-gas-pump"></i>
+            <span id="prev-tier-name" class="tier-badge-pill">Tier 1</span>
+            <span id="prev-fuel-range" class="tier-range-pill">₱50.00 – ₱59.99 / L</span>
+          </div>
+          <div class="tier-preview-grid">
+            <div class="preview-metric">
+              <span class="preview-metric-label">Base Tariff</span>
+              <strong id="prev-base-fare" class="preview-metric-val">₱15.00</strong>
+            </div>
+            <div class="preview-metric">
+              <span class="preview-metric-label">Succeeding KM</span>
+              <strong id="prev-rate-km" class="preview-metric-val">₱2.00 / km</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button id="btn-cancel-settings" type="button" class="btn-secondary">Close</button>
+          <button id="btn-save-settings" type="button" class="btn-primary">Save Tariff Rates</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="toast-notification"></div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <!-- App JS -->
+  <script src="app.js"></script>
+</body>
+
+</html>

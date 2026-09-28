@@ -1,0 +1,1206 @@
+/**
+ * CalFair - Motorized Pedicab Fare & Route GIS Engine
+ * Open-Source GIS implementation using Leaflet, OpenStreetMap & OSRM
+ */
+
+// ============================================================================
+// 1. Default Configuration & State Management
+// ============================================================================
+
+const FUEL_TIERS = [
+  { id: 1, name: 'Tier 1', fuelMin: 50.00, fuelMax: 59.99, baseFare: 15.00, baseDistance: 3.0, ratePerKm: 2.00 },
+  { id: 2, name: 'Tier 2', fuelMin: 60.00, fuelMax: 79.99, baseFare: 20.00, baseDistance: 3.0, ratePerKm: 3.00 },
+  { id: 3, name: 'Tier 3', fuelMin: 80.00, fuelMax: 89.99, baseFare: 20.00, baseDistance: 3.0, ratePerKm: 4.00 },
+  { id: 4, name: 'Tier 4', fuelMin: 90.00, fuelMax: 99.99, baseFare: 20.00, baseDistance: 3.0, ratePerKm: 5.00 },
+  { id: 5, name: 'Tier 5', fuelMin: 100.00, fuelMax: 124.99, baseFare: 20.00, baseDistance: 3.0, ratePerKm: 6.00 },
+  { id: 6, name: 'Tier 6', fuelMin: 125.00, fuelMax: 149.99, baseFare: 20.00, baseDistance: 3.0, ratePerKm: 7.00 },
+  { id: 7, name: 'Tier 7', fuelMin: 150.00, fuelMax: 174.99, baseFare: 25.00, baseDistance: 3.0, ratePerKm: 8.00 },
+  { id: 8, name: 'Tier 8', fuelMin: 175.00, fuelMax: 200.00, baseFare: 30.00, baseDistance: 3.0, ratePerKm: 9.00 }
+];
+
+function getActiveTier(tierId = state?.config?.selectedTier) {
+  const parsedId = parseInt(tierId, 10);
+  return FUEL_TIERS.find(t => t.id === parsedId) || FUEL_TIERS[0];
+}
+
+const DEFAULT_CONFIG = {
+  currency: '₱',
+  selectedTier: 1,        // Default: Tier 1 (₱50.00 - ₱59.99 / Base ₱15 for 0-3km / +₱2/km)
+  avgSpeedKmh: 28         // Typical motorized pedicab urban speed in km/h
+};
+
+const state = {
+  config: { ...DEFAULT_CONFIG },
+  tripType: 'regular',    // Official CTFO tariff: regular trips
+  hasDiscount: false,
+  
+  // Coordinates & Waypoints: [lat, lng]
+  pointA: null,
+  pointB: null,
+  addressA: '',
+  addressB: '',
+  
+  // Calculated Route Details
+  routeDistanceKm: 0,
+  routeDurationMins: 0,
+  routePolyline: null,
+  markerA: null,
+  markerB: null,
+  
+  // Map selection mode
+  clickMode: null // 'pickup' | 'dropoff' | null
+};
+
+// ============================================================================
+// 2. Storage Helpers
+// ============================================================================
+
+function loadConfig() {
+  // Always initialize to the official default tariff configuration (Tier 1)
+  state.config = { ...DEFAULT_CONFIG };
+  try {
+    // Clear any previously persisted tier configuration
+    localStorage.removeItem('calfair_tariff_config');
+  } catch (err) {
+    console.warn('Could not access localStorage:', err);
+  }
+}
+
+function saveConfig(newConfig) {
+state.config = { ...newConfig };
+// Active in-memory update for current session (reverts to Tier 1 on refresh/exit)
+updateUIConfigDisplays();
+recalculateFare();
+}
+
+function resetConfigToDefaults() {
+state.config = { ...DEFAULT_CONFIG };
+try {
+localStorage.removeItem('calfair_tariff_config');
+} catch (err) {
+console.warn('Error clearing config:', err);
+}
+updateUIConfigDisplays();
+populateSettingsForm();
+recalculateFare();
+}
+
+// ============================================================================
+// 3. Leaflet Map Initialization
+// ============================================================================
+
+let map;
+
+function createCustomPin(letter, type) {
+const pinClass = type === 'pickup' ? 'pin-a' : 'pin-b';
+return L.divIcon({
+className: 'custom-pin-wrapper',
+html: `<div class="custom-map-pin ${pinClass}"><span>${letter}</span></div>`,
+iconSize: [36, 36],
+iconAnchor: [18, 36],
+popupAnchor: [0, -36]
+});
+}
+
+const DEFAULT_MAP_BOUNDS = L.latLngBounds([
+  [6.9425, 126.2055], // Southwest: Bay shore & City Hall area
+  [6.9660, 126.2295]  // Northeast: Lower Madang & Mati Diversion Road
+]);
+
+function resetToDefaultView(animate = true) {
+  if (!map) return;
+  const isMobile = window.innerWidth <= 868;
+  if (isMobile) {
+    const sheet = document.getElementById('sidebar-panel');
+    let sheetHeight = 0;
+    if (sheet) {
+      if (sheet.classList.contains('is-collapsed')) {
+        sheetHeight = 86;
+      } else {
+        sheetHeight = sheet.offsetHeight || (window.innerHeight * 0.50);
+      }
+    } else {
+      sheetHeight = window.innerHeight * 0.50;
+    }
+
+    map.fitBounds(DEFAULT_MAP_BOUNDS, {
+      paddingTopLeft: [20, 75],
+      paddingBottomRight: [20, sheetHeight + 20],
+      maxZoom: 15,
+      animate: animate
+    });
+  } else {
+    const sidebar = document.getElementById('sidebar-panel');
+    const sidebarWidth = sidebar ? sidebar.offsetWidth + 30 : 470;
+    map.fitBounds(DEFAULT_MAP_BOUNDS, {
+      paddingTopLeft: [sidebarWidth, 60],
+      paddingBottomRight: [60, 60],
+      maxZoom: 15,
+      animate: animate
+    });
+  }
+}
+
+function centerMapOnVisiblePoint(coords, zoom = 15, animate = true) {
+  if (!map || !coords) return;
+  const isMobile = window.innerWidth <= 868;
+  const latLng = Array.isArray(coords) ? L.latLng(coords[0], coords[1]) : L.latLng(coords);
+  const bounds = latLng.toBounds(300);
+
+  if (isMobile) {
+    const sheet = document.getElementById('sidebar-panel');
+    let sheetHeight = 0;
+    if (sheet) {
+      if (sheet.classList.contains('is-collapsed')) {
+        sheetHeight = 86;
+      } else {
+        sheetHeight = sheet.offsetHeight || (window.innerHeight * 0.50);
+      }
+    } else {
+      sheetHeight = window.innerHeight * 0.50;
+    }
+
+    map.fitBounds(bounds, {
+      paddingTopLeft: [24, 85],
+      paddingBottomRight: [24, sheetHeight + 35],
+      maxZoom: zoom,
+      animate: animate
+    });
+  } else {
+    const sidebar = document.getElementById('sidebar-panel');
+    const sidebarWidth = sidebar ? sidebar.offsetWidth + 30 : 470;
+
+    map.fitBounds(bounds, {
+      paddingTopLeft: [sidebarWidth, 60],
+      paddingBottomRight: [60, 60],
+      maxZoom: zoom,
+      animate: animate
+    });
+  }
+}
+
+function initMap() {
+// Default coordinates: City of Mati, Davao Oriental (6.9555° N, 126.2166° E)
+const defaultCoords = [6.9555, 126.2166];
+
+map = L.map('map', {
+zoomControl: false
+}).setView(defaultCoords, 14);
+
+// Zoom controls on top-right below action bar
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+// 100% Free Tile Providers (No API Key Required, No Watermarks, No 403 Blocks)
+const streetHot = L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+maxZoom: 19,
+subdomains: 'abc',
+attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors, Tiles by <a href="https://www.hotosm.org/" target="_blank">HOT</a>'
+}).addTo(map);
+
+const streetFr = L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
+maxZoom: 20,
+subdomains: 'abc',
+attribution: '&copy; OpenStreetMap France | &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OSM</a>'
+});
+
+const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+maxZoom: 19,
+attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics'
+});
+
+// Basemap Switcher
+L.control.layers({
+'Detailed Streets': streetHot,
+'Standard Streets': streetFr,
+'Satellite View': esriSatellite
+}, null, { position: 'bottomright' }).addTo(map);
+
+  // Map Click Listener
+  map.on('click', handleMapClick);
+
+  // Initial Framing: frame map to reference view once layout settles
+  setTimeout(() => {
+    resetToDefaultView(false);
+  }, 300);
+}
+
+// ============================================================================
+// 4. Marker & Route Management
+// ============================================================================
+
+function setPointA(coords, addressName = 'Point A (Pickup)', triggerRoute = true) {
+state.pointA = coords;
+state.addressA = addressName;
+document.getElementById('pickup-search').value = addressName;
+document.getElementById('btn-clear-pickup').style.display = 'flex';
+
+if (!state.markerA) {
+state.markerA = L.marker(coords, {
+icon: createCustomPin('A', 'pickup'),
+draggable: true
+}).addTo(map);
+
+state.markerA.bindPopup('<strong>Pickup Location</strong><br>Drag to reposition');
+
+state.markerA.on('dragend', async (e) => {
+const newPos = e.target.getLatLng();
+state.pointA = [newPos.lat, newPos.lng];
+const addr = await reverseGeocode(newPos.lat, newPos.lng);
+state.addressA = addr;
+document.getElementById('pickup-search').value = addr;
+calculateRoute();
+});
+} else {
+state.markerA.setLatLng(coords);
+}
+
+if (triggerRoute) {
+calculateRoute();
+}
+}
+
+function setPointB(coords, addressName = 'Point B (Drop-off)', triggerRoute = true) {
+state.pointB = coords;
+state.addressB = addressName;
+document.getElementById('dropoff-search').value = addressName;
+document.getElementById('btn-clear-dropoff').style.display = 'flex';
+
+if (!state.markerB) {
+state.markerB = L.marker(coords, {
+icon: createCustomPin('B', 'dropoff'),
+draggable: true
+}).addTo(map);
+
+state.markerB.bindPopup('<strong>Drop-off Location</strong><br>Drag to reposition');
+
+state.markerB.on('dragend', async (e) => {
+const newPos = e.target.getLatLng();
+state.pointB = [newPos.lat, newPos.lng];
+const addr = await reverseGeocode(newPos.lat, newPos.lng);
+state.addressB = addr;
+document.getElementById('dropoff-search').value = addr;
+calculateRoute();
+});
+} else {
+state.markerB.setLatLng(coords);
+}
+
+if (triggerRoute) {
+calculateRoute();
+}
+}
+
+async function handleMapClick(e) {
+const { lat, lng } = e.latlng;
+const coords = [lat, lng];
+
+  if (state.clickMode === 'pickup' || !state.pointA) {
+    showToast('Pickup location updated!');
+    const addr = await reverseGeocode(lat, lng);
+    setPointA(coords, addr);
+    if (!state.pointB) {
+      centerMapOnVisiblePoint(coords, 15);
+    }
+    state.clickMode = null;
+    document.getElementById('btn-click-mode-pickup')?.classList.remove('active');
+  } else {
+    showToast('Destination updated!');
+    const addr = await reverseGeocode(lat, lng);
+    setPointB(coords, addr);
+  }
+}
+
+// ============================================================================
+// 5. Open-Source Routing Engine (OSRM Main Spine Priority Routing)
+// ============================================================================
+
+// Primary continuous spine coordinates along Rizal Extension, Rizal St, Limatoc St, and Macapagal Highway
+const PRIMARY_SPINE_PATH = [
+  [6.9585, 126.2050], // Rizal Extension west
+  [6.9555, 126.2115], // Rizal Extension
+  [6.9530, 126.2160], // Rizal Street west
+  [6.9515, 126.2185], // Rizal Street center (City Hall)
+  [6.9505, 126.2225], // Limatoc Street
+  [6.9498, 126.2243], // Limatoc / Macapagal junction
+  [6.9467, 126.2262], // Macapagal Highway (Garcia Memorial)
+  [6.9452, 126.2285], // Macapagal Highway (SSS junction)
+  [6.9453, 126.2316], // Macapagal Highway (Mabua west)
+  [6.9443, 126.2360], // Macapagal Highway (Mabua center)
+  [6.9430, 126.2400]  // Macapagal Highway (Mabua east / Matiao)
+];
+
+// Key polyline coordinates along the Mati Diversion Road bypass corridor
+const MATI_DIVERSION_CORRIDOR = [
+  [6.9638, 126.2070],
+  [6.9632, 126.2128],
+  [6.9630, 126.2198],
+  [6.9581, 126.2264],
+  [6.9491, 126.2319],
+  [6.9482, 126.2362],
+  [6.9463, 126.2391],
+  [6.9451, 126.2394]
+];
+
+// Center of the Davao Oriental Provincial Capitol complex
+const CAPITOL_COMPLEX_CENTER = [6.94858, 126.22710];
+
+// Calibrated coastal spine waypoint on President Diosdado P. Macapagal Highway (Node 7574898975)
+// Ensures vehicles stay on the National Highway instead of cutting through Capitol Road or Diversion Road
+const MACAPAGAL_SPINE_WAYPOINT = [6.946733, 126.226234];
+
+function getDistanceToPrimarySpine(lat, lon) {
+  let minKm = Infinity;
+  for (const pt of PRIMARY_SPINE_PATH) {
+    const d = calculateHaversineDistance(lat, lon, pt[0], pt[1]);
+    if (d < minKm) minKm = d;
+  }
+  return minKm;
+}
+
+function getDistanceToDiversionCorridor(lat, lon) {
+  let minKm = Infinity;
+  for (const pt of MATI_DIVERSION_CORRIDOR) {
+    const d = calculateHaversineDistance(lat, lon, pt[0], pt[1]);
+    if (d < minKm) minKm = d;
+  }
+  return minKm;
+}
+
+function isCloserToDiversionThanSpine(lat, lon) {
+  const distSpine = getDistanceToPrimarySpine(lat, lon);
+  const distDiversion = getDistanceToDiversionCorridor(lat, lon);
+  // Only true if the point is significantly closer to Diversion Road than to the Primary Spine
+  return distDiversion < 0.35 && distDiversion < (distSpine * 0.8);
+}
+
+function isTargetInCapitolGrounds(lat, lon) {
+  const [cLat, cLon] = CAPITOL_COMPLEX_CENTER;
+  return calculateHaversineDistance(lat, lon, cLat, cLon) < 0.16;
+}
+
+function inspectRouteRoads(route) {
+  let diversionDist = 0;
+  let macapagalDist = 0;
+  let rizalDist = 0;
+  let limatocDist = 0;
+  let capitolDist = 0;
+
+  if (route.legs) {
+    for (const leg of route.legs) {
+      if (leg.steps) {
+        for (const step of leg.steps) {
+          const name = (step.name || '').toLowerCase();
+          const d = step.distance || 0;
+          if (name.includes('diversion')) {
+            diversionDist += d;
+          }
+          if (name.includes('capitol')) {
+            capitolDist += d;
+          }
+          if (name.includes('macapagal')) {
+            macapagalDist += d;
+          }
+          if (name.includes('rizal')) {
+            rizalDist += d;
+          }
+          if (name.includes('limatoc')) {
+            limatocDist += d;
+          }
+        }
+      }
+    }
+  }
+  return { diversionDist, macapagalDist, rizalDist, limatocDist, capitolDist };
+}
+
+let currentRouteRequestId = 0;
+
+async function calculateRoute() {
+  if (!state.pointA || !state.pointB) return;
+
+  // Guard against identical coordinates
+  if (state.pointA[0] === state.pointB[0] && state.pointA[1] === state.pointB[1]) {
+    return;
+  }
+
+  const requestId = ++currentRouteRequestId;
+  const [latA, lonA] = state.pointA;
+  const [latB, lonB] = state.pointB;
+
+  // Check if pickup or destination is specifically in the Capitol complex or Diversion interior
+  const isEndpointNearDiversion = isCloserToDiversionThanSpine(latA, lonA) || isCloserToDiversionThanSpine(latB, lonB);
+  const isEndpointNearCapitol = isTargetInCapitolGrounds(latA, lonA) || isTargetInCapitolGrounds(latB, lonB);
+
+  try {
+    // 1. Fetch routes from OSRM with alternatives=true and steps=true
+    const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${lonA},${latA};${lonB},${latB}?overview=full&geometries=geojson&alternatives=true&steps=true`;
+    const res = await fetch(osrmUrl);
+    if (!res.ok) throw new Error('OSRM network response failed');
+    const data = await res.json();
+
+    // Guard against race conditions: discard stale in-flight results
+    if (requestId !== currentRouteRequestId) return;
+
+    if (!data.routes || data.routes.length === 0) {
+      throw new Error('No route found by OSRM');
+    }
+
+    let selectedRoute = null;
+
+    if (isEndpointNearDiversion || isEndpointNearCapitol) {
+      // Origin or destination is specifically at Diversion Road or Capitol complex: use standard direct route
+      selectedRoute = data.routes[0];
+    } else {
+      // Through-trip: Strictly follow the Primary Spine (Rizal Extension, Rizal St, Limatoc St, Macapagal Highway)
+      // Disallow Mati Diversion Road and Davao Oriental Provincial Capitol Road shortcuts
+      const scoredRoutes = data.routes.map((r, idx) => {
+        const roads = inspectRouteRoads(r);
+        return {
+          route: r,
+          index: idx,
+          distance: r.distance,
+          roads,
+          usesDiversion: roads.diversionDist > 100,
+          usesCapitol: roads.capitolDist > 50,
+          spineScore: (roads.macapagalDist * 1.5) + (roads.rizalDist * 1.5) + (roads.limatocDist * 1.2) - (roads.diversionDist * 5) - (roads.capitolDist * 5)
+        };
+      });
+
+      // Filter routes that avoid both Diversion Road and Capitol Road shortcuts
+      const cleanSpineRoutes = scoredRoutes.filter(sr => !sr.usesDiversion && !sr.usesCapitol);
+
+      if (cleanSpineRoutes.length > 0) {
+        cleanSpineRoutes.sort((a, b) => b.spineScore - a.spineScore || a.distance - b.distance);
+        selectedRoute = cleanSpineRoutes[0].route;
+      } else {
+        // If all returned OSRM alternatives cut through Capitol Road or Diversion Road,
+        // query via the calibrated Macapagal coastal spine waypoint to enforce staying on the National Highway
+        try {
+          const [wpLat, wpLon] = MACAPAGAL_SPINE_WAYPOINT;
+          const viaUrl = `https://router.project-osrm.org/route/v1/driving/${lonA},${latA};${wpLon},${wpLat};${lonB},${latB}?overview=full&geometries=geojson&steps=true`;
+          const viaRes = await fetch(viaUrl);
+          if (viaRes.ok) {
+            const viaData = await viaRes.json();
+            if (viaData.routes && viaData.routes.length > 0) {
+              const viaRoute = viaData.routes[0];
+              const viaRoads = inspectRouteRoads(viaRoute);
+              // Accept spine waypoint route if it avoids both Capitol Road and Diversion Road without an unreasonable detour
+              if (viaRoads.diversionDist < 100 && viaRoads.capitolDist < 50 && viaRoute.distance <= scoredRoutes[0].distance * 1.4) {
+                selectedRoute = viaRoute;
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('Spine waypoint fallback skipped:', e);
+        }
+
+        // If waypoint route was not applicable, fall back to candidate with highest spine score
+        if (!selectedRoute) {
+          scoredRoutes.sort((a, b) => b.spineScore - a.spineScore || a.distance - b.distance);
+          selectedRoute = scoredRoutes[0].route;
+        }
+      }
+    }
+
+    if (requestId !== currentRouteRequestId) return;
+
+    const coords = selectedRoute.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+
+    // Exact road distance in kilometers
+    state.routeDistanceKm = selectedRoute.distance / 1000;
+
+    // Calculate motorized pedicab travel time based on avg 25-30 km/h with 1 min buffer
+    const speedKmMin = state.config.avgSpeedKmh / 60;
+    state.routeDurationMins = Math.max(2, Math.round((state.routeDistanceKm / speedKmMin) + 1));
+
+    // Draw route on map
+    renderRoutePolyline(coords);
+
+    // Update metrics UI
+    document.getElementById('metric-distance').textContent = `${state.routeDistanceKm.toFixed(2)} km`;
+    document.getElementById('metric-duration').textContent = `~${state.routeDurationMins} mins`;
+
+    // Recalculate Fare
+    recalculateFare();
+
+    // Hide header & route input card to maximize map view
+    enterCompactRouteMode();
+  } catch (err) {
+    // If a newer route request already started, ignore this error/fallback
+    if (requestId !== currentRouteRequestId) return;
+
+    console.error('Error fetching OSRM route:', err);
+    // Fallback: Haversine distance if network fails
+    const directKm = calculateHaversineDistance(latA, lonA, latB, lonB) * 1.25; // 1.25 road curvature factor
+    state.routeDistanceKm = directKm;
+    state.routeDurationMins = Math.max(2, Math.round(directKm * 2.5));
+
+    // Draw straight line fallback
+    renderRoutePolyline([[latA, lonA], [latB, lonB]]);
+
+    document.getElementById('metric-distance').textContent = `${state.routeDistanceKm.toFixed(2)} km (est.)`;
+    document.getElementById('metric-duration').textContent = `~${state.routeDurationMins} mins`;
+    recalculateFare();
+
+    // Hide header & route input card to maximize map view
+    enterCompactRouteMode();
+  }
+}
+
+function enterCompactRouteMode() {
+  const panel = document.getElementById('sidebar-panel');
+  if (!panel) return;
+  panel.classList.remove('is-collapsed');
+  panel.classList.add('route-compact-mode');
+
+  const compactBar = document.getElementById('compact-route-bar');
+  if (compactBar) {
+    compactBar.style.display = 'flex';
+  }
+
+  // Format clean summary: Display Distance from Point A to Point B
+  const labelEl = document.getElementById('compact-route-label');
+  if (labelEl) {
+    const dist = state.routeDistanceKm ? `${state.routeDistanceKm.toFixed(2)} km` : '0.00 km';
+    labelEl.textContent = `Distance: ${dist}`;
+    labelEl.title = `Distance from ${state.addressA || 'Point A'} to ${state.addressB || 'Point B'}: ${dist}`;
+  }
+
+  // Re-frame the map with smooth recentering into newly enlarged viewport
+  setTimeout(() => {
+    if (map) {
+      map.invalidateSize();
+      if (state.routePolyline) {
+        fitRouteToVisibleMap(state.routePolyline.getBounds());
+      }
+    }
+  }, 320);
+}
+
+function exitCompactRouteMode(focusTarget = null) {
+  const panel = document.getElementById('sidebar-panel');
+  if (!panel) return;
+  panel.classList.remove('route-compact-mode');
+
+  const compactBar = document.getElementById('compact-route-bar');
+  if (compactBar) {
+    compactBar.style.display = 'none';
+  }
+
+  setTimeout(() => {
+    if (map) {
+      map.invalidateSize();
+      if (state.routePolyline) {
+        fitRouteToVisibleMap(state.routePolyline.getBounds());
+      } else if (state.pointA && state.pointB) {
+        fitRouteToVisibleMap(L.latLngBounds([state.pointA, state.pointB]));
+      } else if (state.pointA) {
+        centerMapOnVisiblePoint(state.pointA, 15);
+      } else if (state.pointB) {
+        centerMapOnVisiblePoint(state.pointB, 15);
+      }
+    }
+    if (focusTarget) {
+      const targetEl = document.getElementById(focusTarget);
+      if (targetEl) targetEl.focus();
+    }
+  }, 320);
+}
+
+function fitRouteToVisibleMap(bounds) {
+if (!map || !bounds) return;
+
+const isMobile = window.innerWidth <= 868;
+const panel = document.getElementById('sidebar-panel');
+const isCompact = panel && panel.classList.contains('route-compact-mode');
+
+if (isMobile) {
+let sheetHeight = 0;
+if (panel) {
+if (isCompact) {
+sheetHeight = panel.offsetHeight || 220;
+} else if (panel.classList.contains('is-collapsed')) {
+sheetHeight = 86;
+} else {
+sheetHeight = panel.offsetHeight || (window.innerHeight * 0.52);
+}
+} else {
+sheetHeight = window.innerHeight * 0.52;
+}
+
+// Top padding: 85px (for top floating buttons)
+// Bottom padding: sheetHeight + 25px (ensures route and markers A & B are centered in open map above sheet)
+map.fitBounds(bounds, {
+paddingTopLeft: [24, 85],
+paddingBottomRight: [24, sheetHeight + 25],
+maxZoom: 16,
+animate: true
+});
+} else {
+// Desktop: offset for left sidebar or compact bottom card
+if (isCompact) {
+const compactHeight = panel ? panel.offsetHeight : 240;
+map.fitBounds(bounds, {
+paddingTopLeft: [60, 60],
+paddingBottomRight: [60, compactHeight + 30],
+maxZoom: 16,
+animate: true
+});
+} else {
+const sidebarWidth = panel ? panel.offsetWidth + 30 : 470;
+map.fitBounds(bounds, {
+paddingTopLeft: [sidebarWidth, 60],
+paddingBottomRight: [60, 60],
+maxZoom: 16,
+animate: true
+});
+}
+}
+}
+
+function renderRoutePolyline(latlngs) {
+if (state.routePolyline) {
+map.removeLayer(state.routePolyline);
+}
+
+// Draw vibrant glowing polyline with border
+state.routePolyline = L.polyline(latlngs, {
+color: '#059669',
+weight: 6,
+opacity: 0.9,
+lineJoin: 'round',
+lineCap: 'round'
+}).addTo(map);
+
+// Automatically center route in visible open screen area
+const bounds = L.latLngBounds(latlngs);
+fitRouteToVisibleMap(bounds);
+}
+
+// ============================================================================
+// 6. Motorized Pedicab Fare Calculation Engine
+// ============================================================================
+
+function recalculateFare() {
+const cfg = state.config;
+const dist = state.routeDistanceKm || 0;
+const cur = cfg.currency || '₱';
+const tier = getActiveTier(cfg.selectedTier);
+
+// Official Regular Trip Tariff based on selected Fuel Tier
+const baseFare = tier.baseFare;
+
+// Additional distance fee beyond base distance (0-3 KM covered)
+const extraKm = Math.max(0, dist - tier.baseDistance);
+const extraDistFare = extraKm * tier.ratePerKm;
+
+const subtotal = baseFare + extraDistFare;
+
+let discountAmount = 0;
+// Statutory 20% discount (Senior / Student / PWD)
+if (state.hasDiscount) {
+discountAmount = subtotal * 0.20;
+}
+
+const totalFare = Math.max(0, subtotal - discountAmount);
+
+// Update Line Items
+const tripBadgeText = document.getElementById('trip-badge-text') || document.getElementById('trip-badge');
+if (tripBadgeText) tripBadgeText.textContent = tier.name;
+
+const labelBaseFare = document.getElementById('label-base-fare');
+if (labelBaseFare) labelBaseFare.textContent = `Base Fare (First ${tier.baseDistance.toFixed(1)} km)`;
+const valBaseFare = document.getElementById('val-base-fare');
+if (valBaseFare) valBaseFare.textContent = `${cur}${baseFare.toFixed(2)}`;
+
+// Extra Distance
+const extraDistEl = document.getElementById('line-extra-dist');
+if (extraDistEl) {
+if (extraDistFare > 0) {
+extraDistEl.style.display = 'flex';
+const labelExtraDist = document.getElementById('label-extra-dist');
+if (labelExtraDist) {
+labelExtraDist.textContent = `Extra Distance (${extraKm.toFixed(2)} km × ${cur}${tier.ratePerKm.toFixed(2)})`;
+}
+const valExtraDist = document.getElementById('val-extra-dist');
+if (valExtraDist) {
+valExtraDist.textContent = `${cur}${extraDistFare.toFixed(2)}`;
+}
+} else {
+extraDistEl.style.display = 'none';
+}
+}
+
+// Statutory Discount Line
+const discountEl = document.getElementById('line-discount');
+if (discountEl) {
+if (state.hasDiscount) {
+discountEl.style.display = 'flex';
+const valDiscount = document.getElementById('val-discount');
+if (valDiscount) valDiscount.textContent = `-${cur}${discountAmount.toFixed(2)}`;
+} else {
+discountEl.style.display = 'none';
+}
+}
+
+// Grand Total Display
+const fareCurrency = document.getElementById('fare-currency');
+if (fareCurrency) fareCurrency.textContent = cur;
+const roundedFare = Math.round(totalFare).toFixed(2);
+const totalFareAmount = document.getElementById('total-fare-amount');
+if (totalFareAmount) totalFareAmount.textContent = roundedFare;
+
+const metricFareDisplay = document.getElementById('metric-fare-display');
+if (metricFareDisplay) {
+metricFareDisplay.textContent = `${cur}${roundedFare}`;
+}
+}
+
+// ============================================================================
+// 7. Geocoding & Autocomplete (Photon / Nominatim)
+// ============================================================================
+
+async function searchAddresses(query, target) {
+if (!query || query.trim().length < 2) return [];
+
+try {
+// Photon by Komoot provides fast, free OpenStreetMap geocoding (biased to Mati City, Davao Oriental)
+const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lat=6.9555&lon=126.2166&limit=5`;
+const res = await fetch(url);
+if (!res.ok) throw new Error('Search failed');
+const data = await res.json();
+return data.features.map(f => {
+const props = f.properties;
+const name = [props.name, props.street, props.city, props.state].filter(Boolean).join(', ');
+return {
+label: name || props.name || 'Unnamed Street',
+lat: f.geometry.coordinates[1],
+lng: f.geometry.coordinates[0]
+};
+});
+} catch (err) {
+console.warn('Photon search error, trying Nominatim fallback:', err);
+try {
+const nomUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=4`;
+const res = await fetch(nomUrl);
+const data = await res.json();
+return data.map(item => ({
+label: item.display_name,
+lat: parseFloat(item.lat),
+lng: parseFloat(item.lon)
+}));
+} catch (e2) {
+return [];
+}
+}
+}
+
+async function reverseGeocode(lat, lng) {
+try {
+const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
+const res = await fetch(url);
+if (!res.ok) throw new Error('Reverse geocode failed');
+const data = await res.json();
+const addr = data.address;
+if (addr) {
+const road = addr.road || addr.pedestrian || addr.neighbourhood || addr.suburb || '';
+const city = addr.city || addr.town || addr.municipality || '';
+return [road, city].filter(Boolean).join(', ') || data.display_name.split(',').slice(0, 2).join(',');
+}
+return data.display_name.split(',').slice(0, 2).join(',');
+} catch (err) {
+return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+}
+}
+
+// ============================================================================
+// 8. Event Listeners & UI Binding
+// ============================================================================
+// 8. Event Listeners & UI Binding
+// ============================================================================
+
+function setupEventListeners() {
+
+  // Statutory Discount Toggle
+document.getElementById('toggle-discount').addEventListener('change', (e) => {
+state.hasDiscount = e.target.checked;
+recalculateFare();
+});
+
+  // Swap locations button
+  document.getElementById('btn-swap-locations')?.addEventListener('click', () => {
+    if (!state.pointA || !state.pointB) return;
+    const tempCoords = state.pointA;
+    const tempAddr = state.addressA;
+
+    // Swap coordinates and addresses atomically without intermediate route trigger
+    setPointA(state.pointB, state.addressB, false);
+    setPointB(tempCoords, tempAddr, true);
+    showToast('Pickup and Drop-off swapped!');
+  });
+
+  // Change / Edit Route button (exits compact mode to restore header & inputs)
+  document.getElementById('btn-edit-route')?.addEventListener('click', () => {
+    exitCompactRouteMode('dropoff-search');
+  });
+
+  // Clear buttons
+  document.getElementById('btn-clear-pickup')?.addEventListener('click', () => {
+    exitCompactRouteMode();
+    state.pointA = null;
+    state.addressA = '';
+    document.getElementById('pickup-search').value = '';
+    document.getElementById('btn-clear-pickup').style.display = 'none';
+    if (state.markerA) {
+      map.removeLayer(state.markerA);
+      state.markerA = null;
+    }
+    if (state.routePolyline) {
+      map.removeLayer(state.routePolyline);
+      state.routePolyline = null;
+    }
+    document.getElementById('metric-distance').textContent = '0.00 km';
+    document.getElementById('metric-duration').textContent = '0 mins';
+    document.getElementById('metric-fare-display').textContent = '₱0.00';
+    recalculateFare();
+
+    if (!state.pointB) {
+      resetToDefaultView(true);
+    } else {
+      centerMapOnVisiblePoint(state.pointB, 15);
+    }
+  });
+
+  document.getElementById('btn-clear-dropoff')?.addEventListener('click', () => {
+    exitCompactRouteMode();
+    state.pointB = null;
+    state.addressB = '';
+    document.getElementById('dropoff-search').value = '';
+    document.getElementById('btn-clear-dropoff').style.display = 'none';
+    if (state.markerB) {
+      map.removeLayer(state.markerB);
+      state.markerB = null;
+    }
+    if (state.routePolyline) {
+      map.removeLayer(state.routePolyline);
+      state.routePolyline = null;
+    }
+    document.getElementById('metric-distance').textContent = '0.00 km';
+    document.getElementById('metric-duration').textContent = '0 mins';
+    document.getElementById('metric-fare-display').textContent = '₱0.00';
+    recalculateFare();
+
+    if (!state.pointA) {
+      resetToDefaultView(true);
+    } else {
+      centerMapOnVisiblePoint(state.pointA, 15);
+    }
+  });
+
+  // Search Autocomplete binding
+  setupAutocomplete('pickup-search', 'pickup-results', (coords, label) => {
+    setPointA([coords.lat, coords.lng], label);
+    if (!state.pointB) {
+      centerMapOnVisiblePoint([coords.lat, coords.lng], 15);
+    }
+  });
+
+  setupAutocomplete('dropoff-search', 'dropoff-results', (coords, label) => {
+    setPointB([coords.lat, coords.lng], label);
+    if (!state.pointA) {
+      centerMapOnVisiblePoint([coords.lat, coords.lng], 15);
+    }
+  });
+
+  // Floating Action Bar Buttons
+  const triggerGeolocate = () => {
+    if (!('geolocation' in navigator)) {
+      showToast('Geolocation is not supported by your browser.');
+      return;
+    }
+
+    showToast('Requesting permission to access your location...');
+    const btn = document.getElementById('btn-click-mode-pickup');
+    if (btn) btn.classList.add('active');
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        if (btn) btn.classList.remove('active');
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        showToast('Location found! Updating pickup...');
+        const addr = await reverseGeocode(lat, lng);
+        setPointA([lat, lng], addr);
+        if (!state.pointB) {
+          centerMapOnVisiblePoint([lat, lng], 16);
+        }
+        showToast('Current location set as Pickup (A)');
+      },
+      (err) => {
+        if (btn) btn.classList.remove('active');
+        if (err.code === err.PERMISSION_DENIED) {
+          showToast('Location permission denied. Please allow in browser.');
+        } else if (err.code === err.TIMEOUT) {
+          showToast('Location request timed out. Please try again.');
+        } else {
+          showToast('Unable to determine your location.');
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
+  };
+
+  document.getElementById('btn-click-mode-pickup')?.addEventListener('click', triggerGeolocate);
+
+  document.getElementById('btn-recenter')?.addEventListener('click', () => {
+    if (state.routePolyline) {
+      fitRouteToVisibleMap(state.routePolyline.getBounds());
+    } else if (state.pointA && state.pointB) {
+      fitRouteToVisibleMap(L.latLngBounds([state.pointA, state.pointB]));
+    } else if (state.pointA) {
+      centerMapOnVisiblePoint(state.pointA, 15);
+    } else if (state.pointB) {
+      centerMapOnVisiblePoint(state.pointB, 15);
+    } else {
+      resetToDefaultView(true);
+    }
+  });
+
+  // Settings Modal Handlers
+  const settingsModal = document.getElementById('settings-modal');
+  const closeSettingsModal = () => {
+    if (settingsModal) settingsModal.style.display = 'none';
+  };
+
+  const openSettingsModal = (focusTier = false) => {
+    populateSettingsForm();
+    if (settingsModal) {
+      settingsModal.style.display = 'flex';
+      if (focusTier) {
+        const tierSelect = document.getElementById('cfg-fuel-tier');
+        if (tierSelect) {
+          setTimeout(() => tierSelect.focus(), 60);
+        }
+      }
+    }
+  };
+
+  document.getElementById('btn-open-settings')?.addEventListener('click', () => openSettingsModal(false));
+  document.getElementById('trip-badge')?.addEventListener('click', () => openSettingsModal(true));
+
+  document.getElementById('btn-close-settings')?.addEventListener('click', closeSettingsModal);
+  document.getElementById('btn-cancel-settings')?.addEventListener('click', closeSettingsModal);
+
+  // Close on backdrop overlay click
+  settingsModal?.addEventListener('click', (e) => {
+    if (e.target === settingsModal) {
+      closeSettingsModal();
+    }
+  });
+
+  // Close on Escape key press
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && settingsModal && settingsModal.style.display === 'flex') {
+      closeSettingsModal();
+    }
+  });
+
+  // Fuel Tier Dropdown Change Listener
+  document.getElementById('cfg-fuel-tier')?.addEventListener('change', (e) => {
+    updateTierPreview(e.target.value);
+  });
+
+  document.getElementById('btn-save-settings')?.addEventListener('click', () => {
+    const selectedTier = parseInt(document.getElementById('cfg-fuel-tier')?.value, 10) || 1;
+    const newConfig = {
+      ...state.config,
+      currency: state.config.currency || '₱',
+      selectedTier: selectedTier
+    };
+
+    saveConfig(newConfig);
+    if (settingsModal) settingsModal.style.display = 'none';
+    showToast(`Tariff updated to Tier ${selectedTier}!`);
+  });
+
+  // Mobile Bottom-Sheet Drawer Handle Toggle
+  const drawerHandle = document.getElementById('drawer-handle');
+  const sidebarPanel = document.getElementById('sidebar-panel');
+  if (drawerHandle && sidebarPanel) {
+    drawerHandle.addEventListener('click', () => {
+      if (window.innerWidth <= 868) {
+        if (sidebarPanel.classList.contains('route-compact-mode')) {
+          exitCompactRouteMode();
+          return;
+        }
+        if (sidebarPanel.classList.contains('is-collapsed')) {
+          sidebarPanel.classList.remove('is-collapsed');
+        } else {
+          sidebarPanel.classList.add('is-collapsed');
+        }
+        setTimeout(() => {
+          if (map) {
+            map.invalidateSize();
+            if (state.routePolyline) {
+              fitRouteToVisibleMap(state.routePolyline.getBounds());
+            } else if (state.pointA) {
+              centerMapOnVisiblePoint(state.pointA, 15, true);
+            } else if (state.pointB) {
+              centerMapOnVisiblePoint(state.pointB, 15, true);
+            } else {
+              resetToDefaultView(true);
+            }
+          }
+        }, 360);
+      }
+    });
+  }
+
+  // Auto-recenter on screen resize / phone orientation change
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (map) {
+        map.invalidateSize();
+        if (state.routePolyline) {
+          fitRouteToVisibleMap(state.routePolyline.getBounds());
+        } else if (state.pointA) {
+          centerMapOnVisiblePoint(state.pointA, 15, false);
+        } else if (state.pointB) {
+          centerMapOnVisiblePoint(state.pointB, 15, false);
+        } else {
+          resetToDefaultView(false);
+        }
+      }
+    }, 250);
+  });
+}
+
+function setupAutocomplete(inputId, resultsId, onSelect) {
+const input = document.getElementById(inputId);
+const dropdown = document.getElementById(resultsId);
+let debounceTimeout;
+
+input.addEventListener('input', () => {
+clearTimeout(debounceTimeout);
+const query = input.value.trim();
+
+if (query.length < 2) {
+dropdown.style.display = 'none';
+return;
+}
+
+debounceTimeout = setTimeout(async () => {
+const results = await searchAddresses(query);
+if (results && results.length > 0) {
+dropdown.innerHTML = '';
+results.forEach(item => {
+const row = document.createElement('div');
+row.className = 'search-result-item';
+row.dataset.lat = String(item.lat);
+row.dataset.lng = String(item.lng);
+row.dataset.label = item.label;
+
+const icon = document.createElement('i');
+icon.className = 'ph-bold ph-map-pin';
+
+const labelSpan = document.createElement('span');
+labelSpan.textContent = item.label;
+
+row.appendChild(icon);
+row.appendChild(labelSpan);
+
+row.addEventListener('click', () => {
+dropdown.style.display = 'none';
+onSelect({ lat: item.lat, lng: item.lng }, item.label);
+});
+
+dropdown.appendChild(row);
+});
+dropdown.style.display = 'block';
+} else {
+dropdown.style.display = 'none';
+}
+}, 350);
+});
+
+// Hide dropdown on blur
+document.addEventListener('click', (e) => {
+if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+dropdown.style.display = 'none';
+}
+});
+}
+
+
+
+function updateUIConfigDisplays() {
+const cfg = state.config;
+const cur = cfg.currency || '₱';
+document.querySelectorAll('.currency-tag').forEach(el => el.textContent = cur);
+}
+
+function updateTierPreview(tierId) {
+const tier = getActiveTier(tierId);
+const cur = state.config.currency || '₱';
+
+const prevName = document.getElementById('prev-tier-name');
+if (prevName) prevName.textContent = tier.name;
+
+const prevRange = document.getElementById('prev-fuel-range');
+if (prevRange) prevRange.textContent = `${cur}${tier.fuelMin.toFixed(2)} – ${cur}${tier.fuelMax.toFixed(2)} / L`;
+
+const prevBase = document.getElementById('prev-base-fare');
+if (prevBase) prevBase.textContent = `${cur}${tier.baseFare.toFixed(2)} (0–${tier.baseDistance.toFixed(0)} km)`;
+
+const prevRate = document.getElementById('prev-rate-km');
+if (prevRate) prevRate.textContent = `${cur}${tier.ratePerKm.toFixed(2)} / km`;
+}
+
+function populateSettingsForm() {
+const cfg = state.config;
+const tierSelect = document.getElementById('cfg-fuel-tier');
+if (tierSelect) {
+tierSelect.value = String(cfg.selectedTier || 1);
+}
+updateTierPreview(cfg.selectedTier || 1);
+}
+
+function showToast(message) {
+const toast = document.getElementById('toast');
+toast.textContent = message;
+toast.classList.add('show');
+setTimeout(() => {
+toast.classList.remove('show');
+}, 2800);
+}
+
+function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
+const R = 6371; // Earth radius in km
+const dLat = (lat2 - lat1) * Math.PI / 180;
+const dLon = (lon2 - lon1) * Math.PI / 180;
+const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+Math.sin(dLon / 2) * Math.sin(dLon / 2);
+const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+return R * c;
+}
+
+// ============================================================================
+// 10. Startup
+// ============================================================================
+
+window.addEventListener('DOMContentLoaded', () => {
+loadConfig();
+updateUIConfigDisplays();
+populateSettingsForm();
+recalculateFare();
+initMap();
+setupEventListeners();
+});
+
