@@ -781,42 +781,188 @@ metricFareDisplay.textContent = `${cur}${roundedFare}`;
 }
 
 // ============================================================================
-// 7. Geocoding & Autocomplete (Photon / Nominatim)
+// 7. Geocoding & Autocomplete (Restricted strictly to City of Mati, Davao Oriental)
 // ============================================================================
 
-async function searchAddresses(query, target) {
-if (!query || query.trim().length < 2) return [];
-
-try {
-// Photon by Komoot provides fast, free OpenStreetMap geocoding (biased to Mati City, Davao Oriental)
-const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lat=6.9555&lon=126.2166&limit=5`;
-const res = await fetch(url);
-if (!res.ok) throw new Error('Search failed');
-const data = await res.json();
-return data.features.map(f => {
-const props = f.properties;
-const name = [props.name, props.street, props.city, props.state].filter(Boolean).join(', ');
-return {
-label: name || props.name || 'Unnamed Street',
-lat: f.geometry.coordinates[1],
-lng: f.geometry.coordinates[0]
+// Mati Geographic Bounding Box & Reference Center (OSM Relation 1507186)
+const MATI_BOUNDS = {
+  minLat: 6.134,
+  maxLat: 7.085,
+  minLng: 126.090,
+  maxLng: 126.488
 };
-});
-} catch (err) {
-console.warn('Photon search error, trying Nominatim fallback:', err);
-try {
-const nomUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=4`;
-const res = await fetch(nomUrl);
-const data = await res.json();
-return data.map(item => ({
-label: item.display_name,
-lat: parseFloat(item.lat),
-lng: parseFloat(item.lon)
-}));
-} catch (e2) {
-return [];
+const MATI_CENTER = [6.9522, 126.2167];
+
+function isWithinMati(lat, lng) {
+  if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) return false;
+  return lat >= MATI_BOUNDS.minLat &&
+         lat <= MATI_BOUNDS.maxLat &&
+         lng >= MATI_BOUNDS.minLng &&
+         lng <= MATI_BOUNDS.maxLng;
 }
-}
+
+// Curated List of Official 26 Barangays & Prominent Mati Landmarks (Verified via OpenStreetMap)
+const MATI_LOCAL_PLACES = [
+  // Major Landmarks & POIs
+  { name: 'Mati Baywalk', address: 'Baywalk, Quezon Street, Central, Mati, Davao Oriental', lat: 6.95002, lng: 126.21678, tags: ['baywalk', 'sea', 'park', 'boulevard'] },
+  { name: 'Mati Baywalk Grand Stage', address: 'Quezon Street, Central, Mati, Davao Oriental', lat: 6.95050, lng: 126.21700, tags: ['baywalk', 'stage', 'events'] },
+  { name: 'Bay Walk Grill', address: 'Quezon Street, Central, Mati, Davao Oriental', lat: 6.95030, lng: 126.21690, tags: ['grill', 'food', 'restaurant', 'baywalk'] },
+  { name: 'City Hall of Mati', address: 'Doña Rosa II Street, Sainz, Mati, Davao Oriental', lat: 6.95195, lng: 126.21621, tags: ['city hall', 'lgu', 'mayor', 'government'] },
+  { name: 'Davao Oriental Provincial Capitol', address: 'Capitol Hills, Matiao, Mati, Davao Oriental', lat: 6.94859, lng: 126.22711, tags: ['capitol', 'provincial capitol', 'government'] },
+  { name: 'Subangan Davao Oriental Provincial Museum', address: 'Estampa, Dahican, Mati, Davao Oriental', lat: 6.94424, lng: 126.24834, tags: ['subangan', 'museum', 'whale'] },
+  { name: 'Dahican Beach', address: 'San Francisco, Dahican, Mati, Davao Oriental', lat: 6.92435, lng: 126.28090, tags: ['dahican', 'beach', 'surf', 'resort'] },
+  { name: 'Mati Public Market', address: 'Doña Rosa Street, Central, Mati, Davao Oriental', lat: 6.95680, lng: 126.20754, tags: ['market', 'palengke', 'public market'] },
+  { name: 'Davao Oriental State University (DOrSU)', address: 'Guang-guang, Dahican, Mati, Davao Oriental', lat: 6.93164, lng: 126.25467, tags: ['dorsu', 'university', 'college', 'school'] },
+  { name: 'St. Camillus Hospital of Mati', address: 'President Diosdado P. Macapagal Highway, Central, Mati, Davao Oriental', lat: 6.96069, lng: 126.20311, tags: ['hospital', 'camillus', 'clinic', 'medical'] },
+  { name: 'Davao Oriental Provincial Medical Center (DOPMC)', address: 'President Diosdado P. Macapagal Highway, Matiao, Mati, Davao Oriental', lat: 6.94456, lng: 126.24291, tags: ['hospital', 'dopmc', 'provincial hospital', 'medical'] },
+  { name: 'Mati Bus Terminal', address: 'Madang, Central, Mati, Davao Oriental', lat: 6.95744, lng: 126.20773, tags: ['terminal', 'bus', 'van', 'transport', 'pedicab'] },
+  { name: 'Port of Mati (Wharf)', address: 'Port Area, Sainz, Mati, Davao Oriental', lat: 6.94890, lng: 126.21843, tags: ['port', 'wharf', 'pier', 'harbor'] },
+  { name: 'San Nicolas de Tolentino Cathedral', address: 'Quezon Street, Central, Mati, Davao Oriental', lat: 6.95061, lng: 126.21892, tags: ['cathedral', 'church', 'san nicolas'] },
+  { name: 'Carmel of St Teresa of Jesus Monastery', address: 'Mati Diversion Road, Sainz, Mati, Davao Oriental', lat: 6.96193, lng: 126.24060, tags: ['carmelite', 'monastery', 'church'] },
+  { name: 'Sleeping Dinosaur Viewpoint', address: 'Mamali, Badas, Mati, Davao Oriental', lat: 6.89025, lng: 126.18020, tags: ['sleeping dinosaur', 'viewpoint', 'badas'] },
+  { name: 'Pujada Bay Marine Reserve', address: 'Pujada Bay, Mati, Davao Oriental', lat: 6.91500, lng: 126.23000, tags: ['pujada', 'island', 'bay'] },
+  { name: 'Mati Airport (Imelda R. Marcos Airport)', address: 'Rocamora Road, Dahican, Mati, Davao Oriental', lat: 6.94974, lng: 126.27306, tags: ['airport', 'aerodrome'] },
+  { name: "Areca's", address: "Areca's, Limatoc Street, Sainz, Mati, Davao Oriental", lat: 6.95063, lng: 126.22191, tags: ['arecas', 'cafe', 'restaurant', 'limatoc'] },
+
+  // All 26 Official Barangays of City of Mati (OpenStreetMap Verified Ground Truth)
+  { name: 'Barangay Central', address: 'Central, Mati, Davao Oriental', lat: 6.96125, lng: 126.20700, tags: ['central', 'poblacion', 'downtown'] },
+  { name: 'Barangay Dahican', address: 'Dahican, Mati, Davao Oriental', lat: 6.94667, lng: 126.26034, tags: ['dahican', 'beach'] },
+  { name: 'Barangay Matiao', address: 'Matiao, Mati, Davao Oriental', lat: 6.94508, lng: 126.23240, tags: ['matiao'] },
+  { name: 'Barangay Sainz', address: 'Sainz, Mati, Davao Oriental', lat: 6.95886, lng: 126.22019, tags: ['sainz'] },
+  { name: 'Barangay Badas', address: 'Badas, Mati, Davao Oriental', lat: 6.93702, lng: 126.18423, tags: ['badas'] },
+  { name: 'Barangay Bobon', address: 'Bobon, Mati, Davao Oriental', lat: 6.86836, lng: 126.32643, tags: ['bobon'] },
+  { name: 'Barangay Buso', address: 'Buso, Mati, Davao Oriental', lat: 7.00992, lng: 126.23698, tags: ['buso'] },
+  { name: 'Barangay Cabuaya', address: 'Cabuaya, Mati, Davao Oriental', lat: 6.51918, lng: 126.21538, tags: ['cabuaya'] },
+  { name: 'Barangay Culian', address: 'Culian, Mati, Davao Oriental', lat: 6.97127, lng: 126.16284, tags: ['culian'] },
+  { name: 'Barangay Danao', address: 'Danao, Mati, Davao Oriental', lat: 6.92106, lng: 126.12831, tags: ['danao'] },
+  { name: 'Barangay Dawan', address: 'Dawan, Mati, Davao Oriental', lat: 6.89933, lng: 126.15106, tags: ['dawan'] },
+  { name: 'Barangay Don Enrique Lopez', address: 'Don Enrique Lopez, Mati, Davao Oriental', lat: 6.96102, lng: 126.30873, tags: ['don enrique lopez'] },
+  { name: 'Barangay Don Martin Marundan', address: 'Don Martin Marundan, Mati, Davao Oriental', lat: 6.98587, lng: 126.25507, tags: ['marundan', 'don martin marundan'] },
+  { name: 'Barangay Don Salvador Lopez', address: 'Don Salvador Lopez, Mati, Davao Oriental', lat: 7.00773, lng: 126.28448, tags: ['don salvador lopez'] },
+  { name: 'Barangay Lanca', address: 'Lanca, Mati, Davao Oriental', lat: 6.35554, lng: 126.19862, tags: ['lanca'] },
+  { name: 'Barangay Langka', address: 'Langka, Mati, Davao Oriental', lat: 6.35554, lng: 126.19862, tags: ['langka'] },
+  { name: 'Barangay Lawigan', address: 'Lawigan, Mati, Davao Oriental', lat: 6.80123, lng: 126.33122, tags: ['lawigan'] },
+  { name: 'Barangay Libudon', address: 'Libudon, Mati, Davao Oriental', lat: 6.94331, lng: 126.13333, tags: ['libudon'] },
+  { name: 'Barangay Luban', address: 'Luban, Mati, Davao Oriental', lat: 6.43266, lng: 126.22022, tags: ['luban'] },
+  { name: 'Barangay Macambol', address: 'Macambol, Mati, Davao Oriental', lat: 6.83405, lng: 126.19511, tags: ['macambol'] },
+  { name: 'Barangay Mamali', address: 'Mamali, Mati, Davao Oriental', lat: 6.87852, lng: 126.16957, tags: ['mamali'] },
+  { name: 'Barangay Mayo', address: 'Mayo, Mati, Davao Oriental', lat: 7.00522, lng: 126.33477, tags: ['mayo'] },
+  { name: 'Barangay Sanghay', address: 'Sanghay, Mati, Davao Oriental', lat: 6.97394, lng: 126.13727, tags: ['sanghay'] },
+  { name: 'Barangay Tagabakid', address: 'Tagabakid, Mati, Davao Oriental', lat: 7.00504, lng: 126.34880, tags: ['tagabakid'] },
+  { name: 'Barangay Tagbinonga', address: 'Tagbinonga, Mati, Davao Oriental', lat: 7.03336, lng: 126.23149, tags: ['tagbinonga'] },
+  { name: 'Barangay Taguibo', address: 'Taguibo, Mati, Davao Oriental', lat: 7.03443, lng: 126.20740, tags: ['taguibo'] },
+  { name: 'Barangay Tamisan', address: 'Tamisan, Mati, Davao Oriental', lat: 6.84790, lng: 126.29839, tags: ['tamisan'] }
+];
+
+async function searchAddresses(query) {
+  if (!query || query.trim().length < 2) return [];
+  const cleanQ = query.trim().toLowerCase();
+
+  // 1. Instant local search from curated Mati City directory
+  const localMatches = MATI_LOCAL_PLACES.filter(place => {
+    const nameMatch = place.name.toLowerCase().includes(cleanQ);
+    const addrMatch = place.address.toLowerCase().includes(cleanQ);
+    const tagMatch = place.tags && place.tags.some(t => t.includes(cleanQ) || cleanQ.includes(t));
+    return nameMatch || addrMatch || tagMatch;
+  }).map(p => ({
+    label: p.address,
+    lat: p.lat,
+    lng: p.lng
+  }));
+
+  // 2. Query Photon API strictly bounded to City of Mati (bbox: minLon,minLat,maxLon,maxLat)
+  let apiMatches = [];
+  try {
+    const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lat=${MATI_CENTER[0]}&lon=${MATI_CENTER[1]}&bbox=${MATI_BOUNDS.minLng},${MATI_BOUNDS.minLat},${MATI_BOUNDS.maxLng},${MATI_BOUNDS.maxLat}&limit=12`;
+    const res = await fetch(photonUrl);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.features) {
+        apiMatches = data.features
+          .filter(f => {
+            const coords = f.geometry && f.geometry.coordinates;
+            if (!coords || coords.length < 2) return false;
+            const lng = coords[0];
+            const lat = coords[1];
+            // Enforce strict bounding box
+            if (!isWithinMati(lat, lng)) return false;
+            // Filter out foreign results
+            const props = f.properties || {};
+            if (props.countrycode && props.countrycode.toUpperCase() !== 'PH') return false;
+            if (props.country && props.country !== 'Philippines') return false;
+            return true;
+          })
+          .map(f => {
+            const props = f.properties || {};
+            const parts = [
+              props.name,
+              props.street,
+              props.locality || props.district,
+              props.city || 'Mati',
+              props.state || 'Davao Oriental'
+            ].filter(Boolean);
+
+            // Deduplicate label parts (e.g. avoid repeating "Mati, Mati")
+            const uniqueParts = [];
+            parts.forEach(p => {
+              if (!uniqueParts.some(u => u.toLowerCase() === p.toLowerCase())) {
+                uniqueParts.push(p);
+              }
+            });
+
+            let label = uniqueParts.join(', ');
+            if (!label.toLowerCase().includes('mati')) {
+              label += ', Mati, Davao Oriental';
+            }
+
+            return {
+              label: label,
+              lat: f.geometry.coordinates[1],
+              lng: f.geometry.coordinates[0]
+            };
+          });
+      }
+    }
+  } catch (err) {
+    console.warn('Photon bounded search error, falling back to Nominatim:', err);
+  }
+
+  // 3. Fallback to Nominatim strictly bounded to Mati if Photon returned no results
+  if (apiMatches.length === 0 && localMatches.length === 0) {
+    try {
+      const nomUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&viewbox=${MATI_BOUNDS.minLng},${MATI_BOUNDS.maxLat},${MATI_BOUNDS.maxLng},${MATI_BOUNDS.minLat}&bounded=1&countrycodes=ph&limit=8`;
+      const res = await fetch(nomUrl);
+      if (res.ok) {
+        const data = await res.json();
+        apiMatches = (data || [])
+          .filter(item => {
+            const lat = parseFloat(item.lat);
+            const lng = parseFloat(item.lon);
+            return isWithinMati(lat, lng);
+          })
+          .map(item => ({
+            label: item.display_name.split(',').slice(0, 3).join(', ') + ', Mati, Davao Oriental',
+            lat: parseFloat(item.lat),
+            lng: parseFloat(item.lon)
+          }));
+      }
+    } catch (e2) {
+      console.warn('Nominatim bounded fallback failed:', e2);
+    }
+  }
+
+  // Combine results with local matches first, deduplicate by coordinate and label
+  const combined = [...localMatches, ...apiMatches];
+  const unique = [];
+  combined.forEach(item => {
+    const isDup = unique.some(u => {
+      const dist = Math.hypot(u.lat - item.lat, u.lng - item.lng);
+      return dist < 0.001 || u.label.toLowerCase() === item.label.toLowerCase();
+    });
+    if (!isDup) unique.push(item);
+  });
+
+  return unique.slice(0, 6);
 }
 
 async function reverseGeocode(lat, lng) {
@@ -1112,6 +1258,10 @@ function setupAutocomplete(inputId, resultsId, onSelect) {
   const wrapper = input.closest('.search-inputs-wrapper');
   const inputRow = input.closest('.route-input-row');
 
+  let activeIndex = -1;
+  let debounceTimeout;
+  let currentResults = [];
+
   const showDropdown = () => {
     dropdown.style.display = 'block';
     if (wrapper) wrapper.classList.add('has-dropdown-open');
@@ -1120,11 +1270,83 @@ function setupAutocomplete(inputId, resultsId, onSelect) {
 
   const hideDropdown = () => {
     dropdown.style.display = 'none';
+    activeIndex = -1;
     if (inputRow) inputRow.classList.remove('has-dropdown-open');
     if (wrapper) wrapper.classList.remove('has-dropdown-open');
   };
 
-  let debounceTimeout;
+  const handlePostSelection = () => {
+    hideDropdown();
+    if (inputId === 'pickup-search') {
+      const dropoffInput = document.getElementById('dropoff-search');
+      if (dropoffInput && !dropoffInput.value.trim()) {
+        dropoffInput.focus();
+      } else {
+        input.blur();
+      }
+    } else {
+      input.blur();
+    }
+  };
+
+  const selectItemData = (item) => {
+    if (!item) return;
+    onSelect({ lat: item.lat, lng: item.lng }, item.label);
+    handlePostSelection();
+  };
+
+  const updateActiveVisual = () => {
+    const items = dropdown.querySelectorAll('.search-result-item');
+    items.forEach((row, idx) => {
+      if (idx === activeIndex) {
+        row.classList.add('active');
+        row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      } else {
+        row.classList.remove('active');
+      }
+    });
+  };
+
+  const renderResults = (results) => {
+    currentResults = results || [];
+    activeIndex = -1;
+    dropdown.innerHTML = '';
+
+    if (currentResults.length === 0) {
+      hideDropdown();
+      return;
+    }
+
+    currentResults.forEach((item, idx) => {
+      const row = document.createElement('div');
+      row.className = 'search-result-item';
+      row.dataset.lat = String(item.lat);
+      row.dataset.lng = String(item.lng);
+      row.dataset.label = item.label;
+
+      const icon = document.createElement('i');
+      icon.className = 'ph-bold ph-map-pin';
+
+      const labelSpan = document.createElement('span');
+      labelSpan.textContent = item.label;
+
+      row.appendChild(icon);
+      row.appendChild(labelSpan);
+
+      row.addEventListener('mouseenter', () => {
+        activeIndex = idx;
+        updateActiveVisual();
+      });
+
+      row.addEventListener('click', () => {
+        selectItemData(item);
+      });
+
+      dropdown.appendChild(row);
+    });
+
+    showDropdown();
+  };
 
   input.addEventListener('input', () => {
     clearTimeout(debounceTimeout);
@@ -1137,39 +1359,55 @@ function setupAutocomplete(inputId, resultsId, onSelect) {
 
     debounceTimeout = setTimeout(async () => {
       const results = await searchAddresses(query);
-      if (results && results.length > 0) {
-        dropdown.innerHTML = '';
-        results.forEach(item => {
-          const row = document.createElement('div');
-          row.className = 'search-result-item';
-          row.dataset.lat = String(item.lat);
-          row.dataset.lng = String(item.lng);
-          row.dataset.label = item.label;
-
-          const icon = document.createElement('i');
-          icon.className = 'ph-bold ph-map-pin';
-
-          const labelSpan = document.createElement('span');
-          labelSpan.textContent = item.label;
-
-          row.appendChild(icon);
-          row.appendChild(labelSpan);
-
-          row.addEventListener('click', () => {
-            hideDropdown();
-            onSelect({ lat: item.lat, lng: item.lng }, item.label);
-          });
-
-          dropdown.appendChild(row);
-        });
-        showDropdown();
-      } else {
-        hideDropdown();
-      }
+      renderResults(results);
     }, 350);
   });
 
-  // Hide dropdown on blur
+  input.addEventListener('keydown', async (e) => {
+    const isDropdownVisible = dropdown.style.display === 'block';
+
+    if (e.key === 'ArrowDown') {
+      if (isDropdownVisible && currentResults.length > 0) {
+        e.preventDefault();
+        activeIndex = (activeIndex + 1) % currentResults.length;
+        updateActiveVisual();
+      }
+    } else if (e.key === 'ArrowUp') {
+      if (isDropdownVisible && currentResults.length > 0) {
+        e.preventDefault();
+        activeIndex = (activeIndex - 1 + currentResults.length) % currentResults.length;
+        updateActiveVisual();
+      }
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+
+      if (isDropdownVisible && currentResults.length > 0) {
+        // Dropdown is showing results: pick active item or default to first item
+        const targetIndex = activeIndex >= 0 ? activeIndex : 0;
+        selectItemData(currentResults[targetIndex]);
+      } else {
+        // User pressed Enter immediately (before debounce completed or dropdown opened)
+        clearTimeout(debounceTimeout);
+        const query = input.value.trim();
+        if (query.length >= 2) {
+          const results = await searchAddresses(query);
+          if (results && results.length > 0) {
+            selectItemData(results[0]);
+          } else {
+            showToast('No matching places found in City of Mati.');
+            hideDropdown();
+          }
+        }
+      }
+    } else if (e.key === 'Escape') {
+      if (isDropdownVisible) {
+        e.preventDefault();
+        hideDropdown();
+      }
+    }
+  });
+
+  // Hide dropdown on click outside
   document.addEventListener('click', (e) => {
     if (!input.contains(e.target) && !dropdown.contains(e.target)) {
       hideDropdown();

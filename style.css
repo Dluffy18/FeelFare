@@ -498,24 +498,26 @@ body {
 
 /* Compact Route Active Bar */
 .compact-route-bar {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  justify-content: center;
   background: var(--surface-card);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-pill);
-  padding: 6px 8px 6px 14px;
+  padding: 6px 44px;
   box-shadow: var(--shadow-xs);
   animation: fadeIn 0.22s ease-out;
+  min-height: 44px;
 }
 
 .compact-route-tag {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
   min-width: 0;
-  flex: 1;
+  width: 100%;
+  text-align: center;
 }
 
 .compact-route-tag i {
@@ -533,20 +535,24 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: center;
 }
 
 .btn-edit-route {
+  position: absolute;
+  right: 7px;
+  top: 50%;
+  transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
   background: var(--primary-subtle);
   border: 1px solid var(--primary-border);
   color: var(--primary-dark);
-  font-family: var(--font-family);
-  font-size: 0.74rem;
-  font-weight: 700;
-  padding: 5px 12px;
-  border-radius: var(--radius-pill);
+  border-radius: 50%;
   cursor: pointer;
   transition: all var(--transition-fast);
   flex-shrink: 0;
@@ -556,16 +562,16 @@ body {
   background: var(--primary);
   color: #ffffff;
   border-color: var(--primary);
-  transform: translateY(-1px);
+  transform: translateY(-50%) scale(1.05);
   box-shadow: 0 2px 6px rgba(5, 150, 105, 0.25);
 }
 
 .btn-edit-route:active {
-  transform: scale(0.96);
+  transform: translateY(-50%) scale(0.92);
 }
 
 .btn-edit-route i {
-  font-size: 0.85rem;
+  font-size: 0.95rem;
 }
 
 /* ==========================================================================
@@ -825,8 +831,16 @@ body {
 
 .search-result-item:hover,
 .search-result-item.active {
-  background: #f0fdf4;
-  color: #064e3b;
+  background: #ecfdf5;
+  color: #065f46;
+  border-left: 3px solid #10b981;
+  padding-left: 11px;
+}
+
+.search-result-item:hover i,
+.search-result-item.active i {
+  color: #059669;
+  transform: scale(1.1);
 }
 
 /* ==========================================================================
