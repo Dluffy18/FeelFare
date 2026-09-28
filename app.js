@@ -123,8 +123,11 @@ function resetToDefaultView(animate = true) {
       sheetHeight = window.innerHeight * 0.50;
     }
 
+    const topOverlay = document.getElementById('top-search-overlay');
+    const topHeight = topOverlay ? topOverlay.offsetHeight : 120;
+
     map.fitBounds(DEFAULT_MAP_BOUNDS, {
-      paddingTopLeft: [20, 75],
+      paddingTopLeft: [20, topHeight + 20],
       paddingBottomRight: [20, sheetHeight + 20],
       maxZoom: 15,
       animate: animate
@@ -160,9 +163,12 @@ function centerMapOnVisiblePoint(coords, zoom = 15, animate = true) {
       sheetHeight = window.innerHeight * 0.50;
     }
 
+    const topOverlay = document.getElementById('top-search-overlay');
+    const topHeight = topOverlay ? topOverlay.offsetHeight : 120;
+
     map.fitBounds(bounds, {
-      paddingTopLeft: [24, 85],
-      paddingBottomRight: [24, sheetHeight + 35],
+      paddingTopLeft: [20, topHeight + 20],
+      paddingBottomRight: [20, sheetHeight + 25],
       maxZoom: zoom,
       animate: animate
     });
@@ -553,6 +559,11 @@ function enterCompactRouteMode() {
   panel.classList.remove('is-collapsed');
   panel.classList.add('route-compact-mode');
 
+  const topOverlay = document.getElementById('top-search-overlay');
+  if (topOverlay) {
+    topOverlay.classList.add('is-compact');
+  }
+
   const compactBar = document.getElementById('compact-route-bar');
   if (compactBar) {
     compactBar.style.display = 'flex';
@@ -581,6 +592,11 @@ function exitCompactRouteMode(focusTarget = null) {
   const panel = document.getElementById('sidebar-panel');
   if (!panel) return;
   panel.classList.remove('route-compact-mode');
+
+  const topOverlay = document.getElementById('top-search-overlay');
+  if (topOverlay) {
+    topOverlay.classList.remove('is-compact');
+  }
 
   const compactBar = document.getElementById('compact-route-bar');
   if (compactBar) {
@@ -628,14 +644,22 @@ sheetHeight = panel.offsetHeight || (window.innerHeight * 0.52);
 sheetHeight = window.innerHeight * 0.52;
 }
 
-// Top padding: 85px (for top floating buttons)
-// Bottom padding: sheetHeight + 25px (ensures route and markers A & B are centered in open map above sheet)
-map.fitBounds(bounds, {
-paddingTopLeft: [24, 85],
-paddingBottomRight: [24, sheetHeight + 25],
-maxZoom: 16,
-animate: true
-});
+    const topOverlay = document.getElementById('top-search-overlay');
+    let topHeight = 0;
+    if (topOverlay) {
+      topHeight = topOverlay.offsetHeight || 120;
+    } else {
+      topHeight = 60;
+    }
+
+    // Top padding: topHeight + 20px (ensures route and markers A & B are centered below top search)
+    // Bottom padding: sheetHeight + 20px (ensures route and markers A & B are centered above bottom sheet)
+    map.fitBounds(bounds, {
+      paddingTopLeft: [20, topHeight + 20],
+      paddingBottomRight: [20, sheetHeight + 20],
+      maxZoom: 16,
+      animate: true
+    });
 } else {
 // Desktop: offset for left sidebar or compact bottom card
 if (isCompact) {

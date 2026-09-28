@@ -34,7 +34,7 @@
     crossorigin="anonymous"></script>
 
   <!-- App Stylesheet with cache-busting -->
-  <link rel="stylesheet" href="style.css?v=2">
+  <link rel="stylesheet" href="style.css?v=4">
 </head>
 
 <body>
@@ -43,18 +43,71 @@
     <main id="map-container">
       <div id="map"></div>
 
-      <!-- Quick Floating Map Controls -->
-      <div class="map-floating-bar">
-        <button id="btn-click-mode-pickup" class="map-action-btn" title="Use Current Location"
-          aria-label="Use Current Location">
-          <i class="ph-bold ph-map-pin"></i>
-          <span>Current Location</span>
-        </button>
-        <button id="btn-recenter" class="map-action-btn" title="Recenter Route">
-          <i class="ph-bold ph-arrows-out-cardinal"></i>
+
+    </main>
+
+    <!-- Top Floating Destination Search Overlay (Google Maps / Grab style) -->
+    <div class="top-search-overlay" id="top-search-overlay">
+      <!-- Compact Route Active Bar (Visible when inputs are hidden) -->
+      <div class="compact-route-bar" id="compact-route-bar" style="display: none;">
+        <div class="compact-route-tag">
+          <span id="compact-route-label">DISTANCE: 0.00 KM</span>
+        </div>
+        <button id="btn-edit-route" class="btn-edit-route" type="button" title="Edit pickup & drop-off locations">
+          <i class="ph-bold ph-pencil-simple"></i>
+          <span>Edit Location</span>
         </button>
       </div>
-    </main>
+
+      <!-- Waypoints / Address Input Card (Compact Connected Style) -->
+      <section class="control-section route-inputs-card compact-route-card" id="route-inputs-section">
+        <div class="compact-route-layout">
+          <!-- Left Stem: Pin A, Route Connector Line, Pin B -->
+          <div class="route-stem-column">
+            <div class="pin-indicator pickup-pin">
+              <span>A</span>
+            </div>
+            <div class="route-stem-line"></div>
+            <div class="pin-indicator dropoff-pin">
+              <span>B</span>
+            </div>
+          </div>
+
+          <!-- Right Inputs: Stacked Cards with Floating Overlapping Swap Button -->
+          <div class="route-inputs-stacked">
+            <!-- Box A: Pickup -->
+            <div class="compact-input-box box-pickup">
+              <span class="compact-sublabel">From</span>
+              <div class="input-inner">
+                <input type="text" id="pickup-search" class="compact-address-input"
+                  placeholder="Search destination..." autocomplete="off">
+                <button id="btn-clear-pickup" class="clear-btn" title="Clear pickup" style="display:none;"
+                  type="button">&times;</button>
+              </div>
+              <div id="pickup-results" class="search-results-dropdown"></div>
+            </div>
+
+            <!-- Floating Overlapping Swap Button -->
+            <button id="btn-swap-locations" class="compact-swap-btn" title="Swap pickup & drop-off"
+              aria-label="Swap Locations" type="button">
+              <i class="ph-bold ph-arrows-down-up"></i>
+            </button>
+
+            <!-- Box B: Dropoff -->
+            <div class="compact-input-box box-dropoff">
+              <span class="compact-sublabel">DROPOFF</span>
+              <div class="input-inner">
+                <input type="text" id="dropoff-search" class="compact-address-input"
+                  placeholder="Search destination..." autocomplete="off">
+                <button id="btn-clear-dropoff" class="clear-btn" title="Clear drop-off" style="display:none;"
+                  type="button">&times;</button>
+              </div>
+              <div id="dropoff-results" class="search-results-dropdown"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
 
     <!-- Sidebar / Drawer Control Panel -->
     <aside class="sidebar-panel" id="sidebar-panel">
@@ -78,67 +131,6 @@
 
       <!-- Scrollable Main Controls -->
       <div class="sidebar-content">
-
-        <!-- Compact Route Active Bar (Visible when inputs are hidden) -->
-        <div class="compact-route-bar" id="compact-route-bar" style="display: none;">
-          <div class="compact-route-tag">
-            <span id="compact-route-label">DISTANCE: 0.00 KM</span>
-          </div>
-          <button id="btn-edit-route" class="btn-edit-route" type="button" title="Edit pickup & drop-off locations">
-            <i class="ph-bold ph-pencil-simple"></i>
-            <span>Edit Location</span>
-          </button>
-        </div>
-
-        <!-- Waypoints / Address Input Card (Compact Connected Style) -->
-        <section class="control-section route-inputs-card compact-route-card" id="route-inputs-section">
-          <div class="compact-route-layout">
-            <!-- Left Stem: Pin A, Route Connector Line, Pin B -->
-            <div class="route-stem-column">
-              <div class="pin-indicator pickup-pin">
-                <span>A</span>
-              </div>
-              <div class="route-stem-line"></div>
-              <div class="pin-indicator dropoff-pin">
-                <span>B</span>
-              </div>
-            </div>
-
-            <!-- Right Inputs: Stacked Cards with Floating Overlapping Swap Button -->
-            <div class="route-inputs-stacked">
-              <!-- Box A: Pickup -->
-              <div class="compact-input-box box-pickup">
-                <span class="compact-sublabel">From</span>
-                <div class="input-inner">
-                  <input type="text" id="pickup-search" class="compact-address-input"
-                    placeholder="Search destination..." autocomplete="off">
-                  <button id="btn-clear-pickup" class="clear-btn" title="Clear pickup" style="display:none;"
-                    type="button">&times;</button>
-                </div>
-                <div id="pickup-results" class="search-results-dropdown"></div>
-              </div>
-
-              <!-- Floating Overlapping Swap Button -->
-              <button id="btn-swap-locations" class="compact-swap-btn" title="Swap pickup & drop-off"
-                aria-label="Swap Locations" type="button">
-                <i class="ph-bold ph-arrows-down-up"></i>
-              </button>
-
-              <!-- Box B: Dropoff -->
-              <div class="compact-input-box box-dropoff">
-                <span class="compact-sublabel">DROPOFF</span>
-                <div class="input-inner">
-                  <input type="text" id="dropoff-search" class="compact-address-input"
-                    placeholder="Search destination..." autocomplete="off">
-                  <button id="btn-clear-dropoff" class="clear-btn" title="Clear drop-off" style="display:none;"
-                    type="button">&times;</button>
-                </div>
-                <div id="dropoff-results" class="search-results-dropdown"></div>
-              </div>
-            </div>
-          </div>
-
-        </section>
 
         <!-- Route Metrics Summary (Appears once route is calculated) -->
         <section id="route-metrics" class="route-metrics-card">
@@ -281,7 +273,7 @@
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
   <!-- App JS with cache-busting -->
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=4"></script>
 </body>
 
 </html>

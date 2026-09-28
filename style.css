@@ -181,12 +181,96 @@ body {
    Desktop Floating Studio / Sidebar Panel
    ========================================================================== */
 
-.sidebar-panel {
-  position: relative;
-  z-index: 10;
+.top-search-overlay {
+  position: fixed;
+  top: 16px;
+  left: 16px;
   width: 440px;
-  height: calc(100vh - 32px);
-  margin: 16px 0 16px 16px;
+  max-width: calc(100vw - 32px);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+  transition: all var(--transition-smooth);
+}
+
+.top-search-overlay > * {
+  pointer-events: auto;
+}
+
+.top-search-overlay .route-inputs-card {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+  transition: all var(--transition-normal);
+}
+
+.top-search-overlay .compact-input-box {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12), 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+.top-search-overlay .compact-input-box:focus-within {
+  background: #ffffff;
+  border-color: var(--primary-light);
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.22), 0 0 0 3px var(--primary-glow);
+}
+
+.top-search-overlay .route-stem-column {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: var(--radius-pill);
+  padding: 6px 3px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+}
+
+.top-search-overlay .compact-swap-btn {
+  background: #ffffff;
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.16);
+}
+
+.top-search-overlay .compact-route-bar {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: var(--radius-pill);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+}
+
+.top-search-overlay.is-compact #route-inputs-section {
+  display: none !important;
+}
+
+.top-search-overlay.is-compact #compact-route-bar {
+  display: flex !important;
+}
+
+.top-search-overlay:not(.is-compact) #compact-route-bar {
+  display: none !important;
+}
+
+.sidebar-panel {
+  position: fixed;
+  top: 185px;
+  left: 16px;
+  z-index: 990;
+  width: 440px;
+  height: auto;
+  max-height: calc(100vh - 200px);
+  margin: 0;
   background: var(--surface-panel);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -196,7 +280,12 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transition: height var(--transition-smooth), max-height var(--transition-smooth), transform var(--transition-normal);
+  transition: top var(--transition-smooth), height var(--transition-smooth), max-height var(--transition-smooth), transform var(--transition-normal);
+}
+
+.top-search-overlay.is-compact ~ .sidebar-panel {
+  top: 76px;
+  max-height: calc(100vh - 92px);
 }
 
 /* Drawer Handle (Hidden on desktop, active on mobile) */
@@ -1586,9 +1675,29 @@ input:checked+.slider::before {
     flex-direction: column-reverse;
   }
 
+  /* Top Floating Search Card on Mobile */
+  .top-search-overlay {
+    position: fixed;
+    top: max(12px, env(safe-area-inset-top, 12px));
+    left: 14px;
+    right: 14px;
+    width: auto;
+    max-width: none;
+    z-index: 1100;
+  }
+
+  .top-search-overlay .route-inputs-card {
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
+
   /* Bottom Sheet Drawer - Fixed to true visual viewport bottom in mobile browsers */
   .sidebar-panel {
     position: fixed;
+    top: auto !important;
     bottom: 0;
     left: 0;
     right: 0;
@@ -1596,7 +1705,7 @@ input:checked+.slider::before {
     max-width: 100vw;
     margin: 0;
     height: auto;
-    max-height: calc(100dvh - 60px);
+    max-height: calc(100dvh - 80px);
     border-radius: 24px 24px 0 0;
     box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.22);
     border-left: none;
