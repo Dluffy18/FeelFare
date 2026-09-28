@@ -1106,59 +1106,75 @@ recalculateFare();
 }
 
 function setupAutocomplete(inputId, resultsId, onSelect) {
-const input = document.getElementById(inputId);
-const dropdown = document.getElementById(resultsId);
-let debounceTimeout;
+  const input = document.getElementById(inputId);
+  const dropdown = document.getElementById(resultsId);
+  if (!input || !dropdown) return;
+  const wrapper = input.closest('.search-inputs-wrapper');
+  const inputRow = input.closest('.route-input-row');
 
-input.addEventListener('input', () => {
-clearTimeout(debounceTimeout);
-const query = input.value.trim();
+  const showDropdown = () => {
+    dropdown.style.display = 'block';
+    if (wrapper) wrapper.classList.add('has-dropdown-open');
+    if (inputRow) inputRow.classList.add('has-dropdown-open');
+  };
 
-if (query.length < 2) {
-dropdown.style.display = 'none';
-return;
-}
+  const hideDropdown = () => {
+    dropdown.style.display = 'none';
+    if (inputRow) inputRow.classList.remove('has-dropdown-open');
+    if (wrapper) wrapper.classList.remove('has-dropdown-open');
+  };
 
-debounceTimeout = setTimeout(async () => {
-const results = await searchAddresses(query);
-if (results && results.length > 0) {
-dropdown.innerHTML = '';
-results.forEach(item => {
-const row = document.createElement('div');
-row.className = 'search-result-item';
-row.dataset.lat = String(item.lat);
-row.dataset.lng = String(item.lng);
-row.dataset.label = item.label;
+  let debounceTimeout;
 
-const icon = document.createElement('i');
-icon.className = 'ph-bold ph-map-pin';
+  input.addEventListener('input', () => {
+    clearTimeout(debounceTimeout);
+    const query = input.value.trim();
 
-const labelSpan = document.createElement('span');
-labelSpan.textContent = item.label;
+    if (query.length < 2) {
+      hideDropdown();
+      return;
+    }
 
-row.appendChild(icon);
-row.appendChild(labelSpan);
+    debounceTimeout = setTimeout(async () => {
+      const results = await searchAddresses(query);
+      if (results && results.length > 0) {
+        dropdown.innerHTML = '';
+        results.forEach(item => {
+          const row = document.createElement('div');
+          row.className = 'search-result-item';
+          row.dataset.lat = String(item.lat);
+          row.dataset.lng = String(item.lng);
+          row.dataset.label = item.label;
 
-row.addEventListener('click', () => {
-dropdown.style.display = 'none';
-onSelect({ lat: item.lat, lng: item.lng }, item.label);
-});
+          const icon = document.createElement('i');
+          icon.className = 'ph-bold ph-map-pin';
 
-dropdown.appendChild(row);
-});
-dropdown.style.display = 'block';
-} else {
-dropdown.style.display = 'none';
-}
-}, 350);
-});
+          const labelSpan = document.createElement('span');
+          labelSpan.textContent = item.label;
 
-// Hide dropdown on blur
-document.addEventListener('click', (e) => {
-if (!input.contains(e.target) && !dropdown.contains(e.target)) {
-dropdown.style.display = 'none';
-}
-});
+          row.appendChild(icon);
+          row.appendChild(labelSpan);
+
+          row.addEventListener('click', () => {
+            hideDropdown();
+            onSelect({ lat: item.lat, lng: item.lng }, item.label);
+          });
+
+          dropdown.appendChild(row);
+        });
+        showDropdown();
+      } else {
+        hideDropdown();
+      }
+    }, 350);
+  });
+
+  // Hide dropdown on blur
+  document.addEventListener('click', (e) => {
+    if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+      hideDropdown();
+    }
+  });
 }
 
 

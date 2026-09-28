@@ -588,6 +588,15 @@ body {
   gap: 8px;
 }
 
+/* Hide stem line and swap button when search dropdown is open */
+.search-inputs-wrapper.has-dropdown-open .route-connector-line,
+.search-inputs-wrapper.has-dropdown-open .compact-swap-btn,
+.search-inputs-wrapper:has(.search-results-dropdown[style*="display: block"]) .route-connector-line,
+.search-inputs-wrapper:has(.search-results-dropdown[style*="display: block"]) .compact-swap-btn {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 /* Solid vertical stem connecting origin circle and destination square */
 .route-connector-line {
   position: absolute;
@@ -598,6 +607,7 @@ body {
   background: #111827;
   z-index: 60;
   pointer-events: none;
+  transition: opacity var(--transition-fast);
 }
 
 /* Individual Route Input Row Card */
@@ -623,11 +633,20 @@ body {
   z-index: 10;
 }
 
+/* Focus Highlight: ONLY visual highlight, preserves layer stacking */
 .route-input-row:focus-within {
   background: #ffffff;
   border-color: rgba(16, 185, 129, 0.45);
   box-shadow: 0 2px 10px rgba(16, 185, 129, 0.12), 0 0 0 2px rgba(16, 185, 129, 0.2);
-  z-index: 50 !important;
+}
+
+/* ONLY when search dropdown is actively open: elevate layer to float on top */
+.route-input-row.has-dropdown-open,
+.route-input-row:has(.search-results-dropdown[style*="display: block"]) {
+  background: #ffffff;
+  border-color: rgba(16, 185, 129, 0.45);
+  box-shadow: 0 2px 10px rgba(16, 185, 129, 0.12), 0 0 0 2px rgba(16, 185, 129, 0.2);
+  z-index: 500 !important;
 }
 
 /* Origin (Circle) & Destination (Square) Icons */
