@@ -1082,38 +1082,49 @@ recalculateFare();
     }
   });
 
-  // Floating Action Bar Buttons
+  // Current Location (GPS) Geolocation Trigger
   const triggerGeolocate = () => {
     if (!('geolocation' in navigator)) {
       showToast('Geolocation is not supported by your browser.');
       return;
     }
 
-    showToast('Requesting permission to access your location...');
-    const btn = document.getElementById('btn-click-mode-pickup');
-    if (btn) btn.classList.add('active');
+    const locBtn = document.getElementById('btn-current-location');
+    const legacyBtn = document.getElementById('btn-click-mode-pickup');
+    if (locBtn) locBtn.classList.add('is-locating');
+    if (legacyBtn) legacyBtn.classList.add('active');
+
+    showToast('Locating your position via GPS...');
 
     navigator.geolocation.getCurrentPosition(
       async (position) => {
-        if (btn) btn.classList.remove('active');
+        if (locBtn) locBtn.classList.remove('is-locating');
+        if (legacyBtn) legacyBtn.classList.remove('active');
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
-        showToast('Location found! Updating pickup...');
+        showToast('Location acquired! Resolving address...');
         const addr = await reverseGeocode(lat, lng);
         setPointA([lat, lng], addr);
         if (!state.pointB) {
           centerMapOnVisiblePoint([lat, lng], 16);
         }
-        showToast('Current location set as Pickup (A)');
+        showToast('Current location pinned as Pickup!');
+
+        // If destination is not yet set, advance focus to destination input
+        const dropoffInput = document.getElementById('dropoff-search');
+        if (dropoffInput && !dropoffInput.value.trim()) {
+          dropoffInput.focus();
+        }
       },
       (err) => {
-        if (btn) btn.classList.remove('active');
+        if (locBtn) locBtn.classList.remove('is-locating');
+        if (legacyBtn) legacyBtn.classList.remove('active');
         if (err.code === err.PERMISSION_DENIED) {
-          showToast('Location permission denied. Please allow in browser.');
+          showToast('Location permission denied. Please allow location access in your browser.');
         } else if (err.code === err.TIMEOUT) {
           showToast('Location request timed out. Please try again.');
         } else {
-          showToast('Unable to determine your location.');
+          showToast('Unable to determine your current location.');
         }
       },
       {
@@ -1124,6 +1135,7 @@ recalculateFare();
     );
   };
 
+  document.getElementById('btn-current-location')?.addEventListener('click', triggerGeolocate);
   document.getElementById('btn-click-mode-pickup')?.addEventListener('click', triggerGeolocate);
 
   document.getElementById('btn-recenter')?.addEventListener('click', () => {

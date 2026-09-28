@@ -34,7 +34,7 @@
     crossorigin="anonymous"></script>
 
   <!-- App Stylesheet with cache-busting -->
-  <link rel="stylesheet" href="style.css?v=18">
+  <link rel="stylesheet" href="style.css?v=23">
 </head>
 
 <body>
@@ -73,6 +73,10 @@
               placeholder="Enter location" autocomplete="off" spellcheck="false">
             <button id="btn-clear-pickup" class="clear-btn" title="Clear pickup" style="display:none;"
               type="button">&times;</button>
+            <button id="btn-current-location" class="location-action-btn" title="Use current location"
+              aria-label="Use current location" type="button">
+              <i class="ph-bold ph-crosshair"></i>
+            </button>
             <div id="pickup-results" class="search-results-dropdown"></div>
           </div>
 
@@ -261,7 +265,7 @@
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
   <!-- App JS with cache-busting -->
-  <script src="app.js?v=8"></script>
+  <script src="app.js?v=9"></script>
 </body>
 
 </html>
