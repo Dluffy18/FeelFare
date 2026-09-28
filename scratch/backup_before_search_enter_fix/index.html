@@ -72,12 +72,12 @@
           <div class="route-connector-line" aria-hidden="true"></div>
 
           <!-- Origin Card (Top) -->
-          <form class="route-input-row box-pickup" action="javascript:void(0);" onsubmit="return false;">
+          <div class="route-input-row box-pickup">
             <div class="route-input-icon origin-icon" aria-hidden="true">
               <span class="icon-inner-dot"></span>
             </div>
             <input type="text" id="pickup-search" class="compact-address-input" placeholder="Enter location"
-              autocomplete="off" spellcheck="false" enterkeyhint="search">
+              autocomplete="off" spellcheck="false">
             <button id="btn-clear-pickup" class="clear-btn" title="Clear pickup" style="display:none;"
               type="button">&times;</button>
             <button id="btn-current-location" class="location-action-btn" title="Use current location"
@@ -85,7 +85,7 @@
               <i class="ph-bold ph-crosshair"></i>
             </button>
             <div id="pickup-results" class="search-results-dropdown"></div>
-          </form>
+          </div>
 
           <!-- Floating Overlapping Swap Button -->
           <button id="btn-swap-locations" class="compact-swap-btn" title="Swap pickup & drop-off"
@@ -94,16 +94,16 @@
           </button>
 
           <!-- Destination Card (Bottom) -->
-          <form class="route-input-row box-dropoff" action="javascript:void(0);" onsubmit="return false;">
+          <div class="route-input-row box-dropoff">
             <div class="route-input-icon destination-icon" aria-hidden="true">
               <span class="icon-inner-square"></span>
             </div>
             <input type="text" id="dropoff-search" class="compact-address-input" placeholder="Enter destination"
-              autocomplete="off" spellcheck="false" enterkeyhint="search">
+              autocomplete="off" spellcheck="false">
             <button id="btn-clear-dropoff" class="clear-btn" title="Clear drop-off" style="display:none;"
               type="button">&times;</button>
             <div id="dropoff-results" class="search-results-dropdown"></div>
-          </form>
+          </div>
         </div>
       </section>
     </div>
@@ -363,7 +363,7 @@
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
   <!-- App JS with cache-busting -->
-  <script src="app.js?v=14"></script>
+  <script src="app.js?v=13"></script>
 </body>
 
 </html>

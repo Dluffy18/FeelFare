@@ -823,8 +823,6 @@ const MATI_LOCAL_PLACES = [
   { name: 'Pujada Bay Marine Reserve', address: 'Pujada Bay, Mati, Davao Oriental', lat: 6.91500, lng: 126.23000, tags: ['pujada', 'island', 'bay'] },
   { name: 'Mati Airport (Imelda R. Marcos Airport)', address: 'Rocamora Road, Dahican, Mati, Davao Oriental', lat: 6.94974, lng: 126.27306, tags: ['airport', 'aerodrome'] },
   { name: "Areca's", address: "Areca's, Limatoc Street, Sainz, Mati, Davao Oriental", lat: 6.95063, lng: 126.22191, tags: ['arecas', 'cafe', 'restaurant', 'limatoc'] },
-  { name: 'Don Luis Village (Central)', address: 'Don Luis Village, Madang, Central, Mati, Davao Oriental', lat: 6.95729, lng: 126.20951, tags: ['don luis', 'don luis village', 'madang', 'central', 'village', 'subdivision'] },
-  { name: 'Don Luis Village (Dahican)', address: 'Don Luis Village, Estampa, Dahican, Mati, Davao Oriental', lat: 6.94220, lng: 126.24760, tags: ['don luis', 'don luis village', 'dahican', 'estampa', 'village', 'subdivision'] },
 
   // All 26 Official Barangays of City of Mati (OpenStreetMap Verified Ground Truth)
   { name: 'Barangay Central', address: 'Central, Mati, Davao Oriental', lat: 6.96125, lng: 126.20700, tags: ['central', 'poblacion', 'downtown'] },
@@ -856,13 +854,6 @@ const MATI_LOCAL_PLACES = [
   { name: 'Barangay Tamisan', address: 'Tamisan, Mati, Davao Oriental', lat: 6.84790, lng: 126.29839, tags: ['tamisan'] }
 ];
 
-function hasWordBoundaryMatch(text, word) {
-  if (!text || !word) return false;
-  const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const rx = new RegExp('\\b' + escaped, 'i');
-  return rx.test(text);
-}
-
 async function searchAddresses(query) {
   if (!query || query.trim().length < 2) return [];
   const cleanQ = query.trim().toLowerCase();
@@ -882,11 +873,11 @@ async function searchAddresses(query) {
       score += 1200;
     } else if (nameLower.startsWith(cleanQ)) {
       score += 700;
-    } else if (hasWordBoundaryMatch(nameLower, cleanQ)) {
+    } else if (nameLower.includes(cleanQ)) {
       score += 400;
     }
 
-    // B. Exact / Prefix Match on Aliases / Tags (e.g. "provincial hospital", "dopmc", "camillus", "don luis")
+    // B. Exact / Prefix Match on Aliases / Tags (e.g. "provincial hospital", "dopmc", "camillus")
     if (tags.length > 0) {
       if (tags.some(t => t === cleanQ)) {
         score += 650;
@@ -894,47 +885,34 @@ async function searchAddresses(query) {
         score += 300;
       } else if (tags.some(t => cleanQ.startsWith(t))) {
         score += 250;
-      } else if (tags.some(t => hasWordBoundaryMatch(t, cleanQ))) {
+      } else if (tags.some(t => t.includes(cleanQ))) {
         score += 150;
       }
     }
 
-    // C. Multi-Word Token Coverage (Word-boundary matching to prevent false positives like 'don' matching 'libudon')
+    // C. Multi-Word Token Coverage (e.g. "davao oriental provincial medical center")
     if (queryWords.length > 0) {
       let matchedTokens = 0;
       queryWords.forEach(word => {
-        if (hasWordBoundaryMatch(nameLower, word)) {
+        if (nameLower.includes(word)) {
           matchedTokens++;
           score += 90;
-        } else if (tags.some(t => hasWordBoundaryMatch(t, word))) {
+        } else if (tags.some(t => t.includes(word))) {
           matchedTokens++;
           score += 50;
-        } else if (hasWordBoundaryMatch(addrLower, word)) {
+        } else if (addrLower.includes(word)) {
           score += 15;
         }
       });
 
-      // Token coverage rule:
-      // If user typed 2 or more words (e.g. "don luis village"),
-      // a candidate that only matches 1 isolated word (e.g. only "don") must not get high score.
-      if (queryWords.length >= 2) {
-        const coverageRatio = matchedTokens / queryWords.length;
-        if (matchedTokens < 2 && coverageRatio < 0.5) {
-          // Penalize partial single-token matches for multi-word queries
-          score = Math.max(0, score - 80);
-        } else if (matchedTokens === queryWords.length) {
-          // Bonus when all searched words appear in the place's name or tags
-          score += 450;
-        } else {
-          score += matchedTokens * 60;
-        }
-      } else if (matchedTokens === 1) {
-        score += 50;
+      // Bonus when all searched words appear in the place's name or tags
+      if (matchedTokens === queryWords.length) {
+        score += 350;
       }
     }
 
-    // D. Address word-boundary fallback
-    if (hasWordBoundaryMatch(addrLower, cleanQ)) {
+    // D. Address substring fallback
+    if (addrLower.includes(cleanQ)) {
       score += 60;
     }
 
@@ -981,9 +959,8 @@ async function searchAddresses(query) {
           })
           .map(f => {
             const props = f.properties || {};
-            const rawName = (props.name || '').trim();
             const parts = [
-              rawName,
+              props.name,
               props.street,
               props.locality || props.district,
               props.city || 'Mati',
@@ -1003,35 +980,10 @@ async function searchAddresses(query) {
               label += ', Mati, Davao Oriental';
             }
 
-            // Calculate API relevance score
-            let apiScore = 150;
-            const lowerName = rawName.toLowerCase();
-            const lowerLabel = label.toLowerCase();
-            if (lowerName === cleanQ) {
-              apiScore = 1200;
-            } else if (lowerName.startsWith(cleanQ)) {
-              apiScore = 800;
-            } else if (lowerName.includes(cleanQ)) {
-              apiScore = 600;
-            } else if (lowerLabel.includes(cleanQ)) {
-              apiScore = 400;
-            } else {
-              let matchedApiWords = 0;
-              queryWords.forEach(w => {
-                if (hasWordBoundaryMatch(lowerLabel, w)) matchedApiWords++;
-              });
-              if (queryWords.length > 0 && matchedApiWords === queryWords.length) {
-                apiScore = 500;
-              } else if (matchedApiWords >= 2) {
-                apiScore = 250 + (matchedApiWords * 40);
-              }
-            }
-
             return {
               label: label,
               lat: f.geometry.coordinates[1],
-              lng: f.geometry.coordinates[0],
-              score: apiScore
+              lng: f.geometry.coordinates[0]
             };
           });
       }
@@ -1056,8 +1008,7 @@ async function searchAddresses(query) {
           .map(item => ({
             label: item.display_name.split(',').slice(0, 3).join(', ') + ', Mati, Davao Oriental',
             lat: parseFloat(item.lat),
-            lng: parseFloat(item.lon),
-            score: 100
+            lng: parseFloat(item.lon)
           }));
       }
     } catch (e2) {
@@ -1065,10 +1016,8 @@ async function searchAddresses(query) {
     }
   }
 
-  // Combine results and sort strictly by relevance score descending
+  // Combine results with local matches first, deduplicate by coordinate and label
   const combined = [...localMatches, ...apiMatches];
-  combined.sort((a, b) => (b.score || 0) - (a.score || 0));
-
   const unique = [];
   combined.forEach(item => {
     const isDup = unique.some(u => {
@@ -1436,12 +1385,10 @@ function setupAutocomplete(inputId, resultsId, onSelect) {
   if (!input || !dropdown) return;
   const wrapper = input.closest('.search-inputs-wrapper');
   const inputRow = input.closest('.route-input-row');
-  const parentForm = input.closest('form');
 
   let activeIndex = -1;
   let debounceTimeout;
   let currentResults = [];
-  let isCommitting = false;
 
   const showDropdown = () => {
     dropdown.style.display = 'block';
@@ -1458,48 +1405,22 @@ function setupAutocomplete(inputId, resultsId, onSelect) {
 
   const handlePostSelection = () => {
     hideDropdown();
-    input.blur();
     if (inputId === 'pickup-search') {
       const dropoffInput = document.getElementById('dropoff-search');
-      const isMobile = window.innerWidth <= 768;
-      if (dropoffInput && !dropoffInput.value.trim() && !isMobile) {
+      if (dropoffInput && !dropoffInput.value.trim()) {
         dropoffInput.focus();
+      } else {
+        input.blur();
       }
+    } else {
+      input.blur();
     }
   };
 
   const selectItemData = (item) => {
     if (!item) return;
-    input.value = item.label;
     onSelect({ lat: item.lat, lng: item.lng }, item.label);
     handlePostSelection();
-  };
-
-  const commitSelection = async () => {
-    if (isCommitting) return;
-    isCommitting = true;
-    try {
-      const isDropdownVisible = dropdown.style.display === 'block';
-      if (isDropdownVisible && currentResults.length > 0) {
-        const targetIndex = activeIndex >= 0 ? activeIndex : 0;
-        selectItemData(currentResults[targetIndex]);
-        return;
-      }
-
-      clearTimeout(debounceTimeout);
-      const query = input.value.trim();
-      if (query.length >= 2) {
-        const results = await searchAddresses(query);
-        if (results && results.length > 0) {
-          selectItemData(results[0]);
-        } else {
-          showToast('No matching places found in City of Mati.');
-          hideDropdown();
-        }
-      }
-    } finally {
-      setTimeout(() => { isCommitting = false; }, 300);
-    }
   };
 
   const updateActiveVisual = () => {
@@ -1570,9 +1491,8 @@ function setupAutocomplete(inputId, resultsId, onSelect) {
     }, 350);
   });
 
-  input.addEventListener('keydown', (e) => {
+  input.addEventListener('keydown', async (e) => {
     const isDropdownVisible = dropdown.style.display === 'block';
-    const isEnter = e.key === 'Enter' || e.keyCode === 13 || e.which === 13 || e.code === 'Enter';
 
     if (e.key === 'ArrowDown') {
       if (isDropdownVisible && currentResults.length > 0) {
@@ -1586,9 +1506,27 @@ function setupAutocomplete(inputId, resultsId, onSelect) {
         activeIndex = (activeIndex - 1 + currentResults.length) % currentResults.length;
         updateActiveVisual();
       }
-    } else if (isEnter) {
+    } else if (e.key === 'Enter') {
       e.preventDefault();
-      commitSelection();
+
+      if (isDropdownVisible && currentResults.length > 0) {
+        // Dropdown is showing results: pick active item or default to first item
+        const targetIndex = activeIndex >= 0 ? activeIndex : 0;
+        selectItemData(currentResults[targetIndex]);
+      } else {
+        // User pressed Enter immediately (before debounce completed or dropdown opened)
+        clearTimeout(debounceTimeout);
+        const query = input.value.trim();
+        if (query.length >= 2) {
+          const results = await searchAddresses(query);
+          if (results && results.length > 0) {
+            selectItemData(results[0]);
+          } else {
+            showToast('No matching places found in City of Mati.');
+            hideDropdown();
+          }
+        }
+      }
     } else if (e.key === 'Escape') {
       if (isDropdownVisible) {
         e.preventDefault();
@@ -1596,29 +1534,6 @@ function setupAutocomplete(inputId, resultsId, onSelect) {
       }
     }
   });
-
-  // Mobile virtual keyboard keyup fallback (for Android soft keyboards in composition mode)
-  input.addEventListener('keyup', (e) => {
-    const isEnter = e.key === 'Enter' || e.keyCode === 13 || e.which === 13 || e.code === 'Enter';
-    if (isEnter) {
-      e.preventDefault();
-      commitSelection();
-    }
-  });
-
-  // Mobile search action event
-  input.addEventListener('search', (e) => {
-    e.preventDefault();
-    commitSelection();
-  });
-
-  // Form submit event (fired when mobile keyboard action/checkmark/search button is pressed)
-  if (parentForm) {
-    parentForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      commitSelection();
-    });
-  }
 
   // Hide dropdown on click outside
   document.addEventListener('click', (e) => {
