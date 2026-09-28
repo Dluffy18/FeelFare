@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport"
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#064e3b">
+  <meta name="theme-color" content="#111827">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
@@ -34,7 +34,7 @@
     crossorigin="anonymous"></script>
 
   <!-- App Stylesheet with cache-busting -->
-  <link rel="stylesheet" href="style.css?v=23">
+  <link rel="stylesheet" href="style.css?v=28">
 </head>
 
 <body>
@@ -53,9 +53,14 @@
         <div class="compact-route-tag">
           <span id="compact-route-label">DISTANCE: 0.00 KM</span>
         </div>
-        <button id="btn-edit-route" class="btn-edit-route" type="button" title="Edit pickup & drop-off locations" aria-label="Edit location">
-          <i class="ph-bold ph-pencil-simple"></i>
-        </button>
+        <div class="compact-route-actions">
+          <button id="btn-edit-route" class="btn-edit-route" type="button" title="Edit pickup & drop-off locations" aria-label="Edit location">
+            <i class="ph-bold ph-pencil-simple"></i>
+          </button>
+          <button id="btn-recenter" class="btn-recenter map-action-btn" type="button" title="Recenter map" aria-label="Recenter map">
+            <i class="ph-bold ph-navigation-arrow"></i>
+          </button>
+        </div>
       </div>
 
       <!-- Waypoints / Address Input Card (Modern Ride-Hailing Style) -->
@@ -233,7 +238,6 @@
         <!-- Dynamic Tier Details Preview Card -->
         <div id="tier-preview-card" class="tier-preview-card">
           <div class="tier-preview-header">
-            <i class="ph-bold ph-gas-pump"></i>
             <span id="prev-tier-name" class="tier-badge-pill">Tier 1</span>
             <span id="prev-fuel-range" class="tier-range-pill">₱50.00 – ₱59.99 / L</span>
           </div>
@@ -265,7 +269,7 @@
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
   <!-- App JS with cache-busting -->
-  <script src="app.js?v=9"></script>
+  <script src="app.js?v=12"></script>
 </body>
 
 </html>

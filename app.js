@@ -813,8 +813,8 @@ const MATI_LOCAL_PLACES = [
   { name: 'Dahican Beach', address: 'San Francisco, Dahican, Mati, Davao Oriental', lat: 6.92435, lng: 126.28090, tags: ['dahican', 'beach', 'surf', 'resort'] },
   { name: 'Mati Public Market', address: 'Doña Rosa Street, Central, Mati, Davao Oriental', lat: 6.95680, lng: 126.20754, tags: ['market', 'palengke', 'public market'] },
   { name: 'Davao Oriental State University (DOrSU)', address: 'Guang-guang, Dahican, Mati, Davao Oriental', lat: 6.93164, lng: 126.25467, tags: ['dorsu', 'university', 'college', 'school'] },
-  { name: 'St. Camillus Hospital of Mati', address: 'President Diosdado P. Macapagal Highway, Central, Mati, Davao Oriental', lat: 6.96069, lng: 126.20311, tags: ['hospital', 'camillus', 'clinic', 'medical'] },
-  { name: 'Davao Oriental Provincial Medical Center (DOPMC)', address: 'President Diosdado P. Macapagal Highway, Matiao, Mati, Davao Oriental', lat: 6.94456, lng: 126.24291, tags: ['hospital', 'dopmc', 'provincial hospital', 'medical'] },
+  { name: 'Davao Oriental Provincial Medical Center (DOPMC)', address: 'President Diosdado P. Macapagal Highway, Matiao, Mati, Davao Oriental', lat: 6.94456, lng: 126.24291, tags: ['dopmc', 'provincial hospital', 'provincial medical center', 'davao oriental provincial medical center', 'davao oriental provincial hospital', 'hospital', 'medical', 'public hospital', 'matiao hospital'] },
+  { name: 'St. Camillus Hospital of Mati', address: 'President Diosdado P. Macapagal Highway, Central, Mati, Davao Oriental', lat: 6.96069, lng: 126.20311, tags: ['camillus', 'saint camillus', 'st camillus', 'st. camillus', 'hospital', 'clinic', 'medical', 'private hospital'] },
   { name: 'Mati Bus Terminal', address: 'Madang, Central, Mati, Davao Oriental', lat: 6.95744, lng: 126.20773, tags: ['terminal', 'bus', 'van', 'transport', 'pedicab'] },
   { name: 'Port of Mati (Wharf)', address: 'Port Area, Sainz, Mati, Davao Oriental', lat: 6.94890, lng: 126.21843, tags: ['port', 'wharf', 'pier', 'harbor'] },
   { name: 'San Nicolas de Tolentino Cathedral', address: 'Quezon Street, Central, Mati, Davao Oriental', lat: 6.95061, lng: 126.21892, tags: ['cathedral', 'church', 'san nicolas'] },
@@ -857,18 +857,83 @@ const MATI_LOCAL_PLACES = [
 async function searchAddresses(query) {
   if (!query || query.trim().length < 2) return [];
   const cleanQ = query.trim().toLowerCase();
+  const queryWords = cleanQ.split(/\s+/).filter(w => w.length > 1);
 
-  // 1. Instant local search from curated Mati City directory
-  const localMatches = MATI_LOCAL_PLACES.filter(place => {
-    const nameMatch = place.name.toLowerCase().includes(cleanQ);
-    const addrMatch = place.address.toLowerCase().includes(cleanQ);
-    const tagMatch = place.tags && place.tags.some(t => t.includes(cleanQ) || cleanQ.includes(t));
-    return nameMatch || addrMatch || tagMatch;
-  }).map(p => ({
-    label: p.address,
-    lat: p.lat,
-    lng: p.lng
-  }));
+  // 1. Instant local search from curated Mati City directory with multi-tier relevance scoring
+  const scoredLocalCandidates = [];
+
+  MATI_LOCAL_PLACES.forEach(place => {
+    let score = 0;
+    const nameLower = place.name.toLowerCase();
+    const addrLower = place.address.toLowerCase();
+    const tags = place.tags || [];
+
+    // A. Exact / Prefix Match on Place Name
+    if (nameLower === cleanQ) {
+      score += 1200;
+    } else if (nameLower.startsWith(cleanQ)) {
+      score += 700;
+    } else if (nameLower.includes(cleanQ)) {
+      score += 400;
+    }
+
+    // B. Exact / Prefix Match on Aliases / Tags (e.g. "provincial hospital", "dopmc", "camillus")
+    if (tags.length > 0) {
+      if (tags.some(t => t === cleanQ)) {
+        score += 650;
+      } else if (tags.some(t => t.startsWith(cleanQ))) {
+        score += 300;
+      } else if (tags.some(t => cleanQ.startsWith(t))) {
+        score += 250;
+      } else if (tags.some(t => t.includes(cleanQ))) {
+        score += 150;
+      }
+    }
+
+    // C. Multi-Word Token Coverage (e.g. "davao oriental provincial medical center")
+    if (queryWords.length > 0) {
+      let matchedTokens = 0;
+      queryWords.forEach(word => {
+        if (nameLower.includes(word)) {
+          matchedTokens++;
+          score += 90;
+        } else if (tags.some(t => t.includes(word))) {
+          matchedTokens++;
+          score += 50;
+        } else if (addrLower.includes(word)) {
+          score += 15;
+        }
+      });
+
+      // Bonus when all searched words appear in the place's name or tags
+      if (matchedTokens === queryWords.length) {
+        score += 350;
+      }
+    }
+
+    // D. Address substring fallback
+    if (addrLower.includes(cleanQ)) {
+      score += 60;
+    }
+
+    if (score >= 40) {
+      // Build clear, informative label showing Name first, then address
+      const fullLabel = addrLower.startsWith(nameLower)
+        ? place.address
+        : `${place.name}, ${place.address}`;
+
+      scoredLocalCandidates.push({
+        label: fullLabel,
+        lat: place.lat,
+        lng: place.lng,
+        score: score
+      });
+    }
+  });
+
+  // Sort local matches strictly by relevance score descending
+  scoredLocalCandidates.sort((a, b) => b.score - a.score);
+  const localMatches = scoredLocalCandidates;
 
   // 2. Query Photon API strictly bounded to City of Mati (bbox: minLon,minLat,maxLon,maxLat)
   let apiMatches = [];
