@@ -1442,21 +1442,15 @@ function setupAutocomplete(inputId, resultsId, onSelect) {
   let debounceTimeout;
   let currentResults = [];
   let isCommitting = false;
-  let searchRequestId = 0;
-  let hasSelectedPlace = false;
 
   const showDropdown = () => {
-    if (hasSelectedPlace || currentResults.length === 0) return;
     dropdown.style.display = 'block';
     if (wrapper) wrapper.classList.add('has-dropdown-open');
     if (inputRow) inputRow.classList.add('has-dropdown-open');
   };
 
   const hideDropdown = () => {
-    clearTimeout(debounceTimeout);
     dropdown.style.display = 'none';
-    dropdown.innerHTML = '';
-    currentResults = [];
     activeIndex = -1;
     if (inputRow) inputRow.classList.remove('has-dropdown-open');
     if (wrapper) wrapper.classList.remove('has-dropdown-open');
@@ -1476,10 +1470,6 @@ function setupAutocomplete(inputId, resultsId, onSelect) {
 
   const selectItemData = (item) => {
     if (!item) return;
-    clearTimeout(debounceTimeout);
-    searchRequestId++;
-    hasSelectedPlace = true;
-
     input.value = item.label;
     onSelect({ lat: item.lat, lng: item.lng }, item.label);
     handlePostSelection();
@@ -1488,8 +1478,6 @@ function setupAutocomplete(inputId, resultsId, onSelect) {
   const commitSelection = async () => {
     if (isCommitting) return;
     isCommitting = true;
-    clearTimeout(debounceTimeout);
-
     try {
       const isDropdownVisible = dropdown.style.display === 'block';
       if (isDropdownVisible && currentResults.length > 0) {
@@ -1498,17 +1486,15 @@ function setupAutocomplete(inputId, resultsId, onSelect) {
         return;
       }
 
+      clearTimeout(debounceTimeout);
       const query = input.value.trim();
       if (query.length >= 2) {
-        const thisReqId = ++searchRequestId;
         const results = await searchAddresses(query);
-        if (thisReqId === searchRequestId && !hasSelectedPlace) {
-          if (results && results.length > 0) {
-            selectItemData(results[0]);
-          } else {
-            showToast('No matching places found in City of Mati.');
-            hideDropdown();
-          }
+        if (results && results.length > 0) {
+          selectItemData(results[0]);
+        } else {
+          showToast('No matching places found in City of Mati.');
+          hideDropdown();
         }
       }
     } finally {
@@ -1529,11 +1515,6 @@ function setupAutocomplete(inputId, resultsId, onSelect) {
   };
 
   const renderResults = (results) => {
-    if (hasSelectedPlace) {
-      hideDropdown();
-      return;
-    }
-
     currentResults = results || [];
     activeIndex = -1;
     dropdown.innerHTML = '';
@@ -1576,7 +1557,6 @@ function setupAutocomplete(inputId, resultsId, onSelect) {
 
   input.addEventListener('input', () => {
     clearTimeout(debounceTimeout);
-    hasSelectedPlace = false;
     const query = input.value.trim();
 
     if (query.length < 2) {
@@ -1585,11 +1565,8 @@ function setupAutocomplete(inputId, resultsId, onSelect) {
     }
 
     debounceTimeout = setTimeout(async () => {
-      const thisReqId = ++searchRequestId;
       const results = await searchAddresses(query);
-      if (thisReqId === searchRequestId && !hasSelectedPlace) {
-        renderResults(results);
-      }
+      renderResults(results);
     }, 350);
   });
 
@@ -1642,15 +1619,6 @@ function setupAutocomplete(inputId, resultsId, onSelect) {
       commitSelection();
     });
   }
-
-  // Dismiss dropdown on blur
-  input.addEventListener('blur', () => {
-    setTimeout(() => {
-      if (!dropdown.contains(document.activeElement)) {
-        hideDropdown();
-      }
-    }, 180);
-  });
 
   // Hide dropdown on click outside
   document.addEventListener('click', (e) => {
