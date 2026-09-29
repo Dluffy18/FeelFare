@@ -1492,6 +1492,56 @@ recalculateFare();
     console.warn('localStorage not accessible for guide preference:', err);
   }
 
+  // Navigation Sidebar (Drawer) Handlers
+  const navSidebar = document.getElementById('nav-sidebar');
+  const navBackdrop = document.getElementById('nav-sidebar-backdrop');
+
+  const openNavSidebar = () => {
+    if (navSidebar) {
+      navSidebar.classList.add('is-open');
+      navSidebar.setAttribute('aria-hidden', 'false');
+    }
+    if (navBackdrop) {
+      navBackdrop.classList.add('is-open');
+      navBackdrop.setAttribute('aria-hidden', 'false');
+    }
+    syncSidebarFuelTier();
+  };
+
+  const closeNavSidebar = () => {
+    if (navSidebar) {
+      navSidebar.classList.remove('is-open');
+      navSidebar.setAttribute('aria-hidden', 'true');
+    }
+    if (navBackdrop) {
+      navBackdrop.classList.remove('is-open');
+      navBackdrop.setAttribute('aria-hidden', 'true');
+    }
+  };
+
+  document.getElementById('btn-open-sidebar')?.addEventListener('click', openNavSidebar);
+  document.getElementById('btn-compact-open-sidebar')?.addEventListener('click', openNavSidebar);
+  document.getElementById('btn-close-nav-sidebar')?.addEventListener('click', closeNavSidebar);
+  navBackdrop?.addEventListener('click', closeNavSidebar);
+
+  // Close navigation sidebar on Escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && navSidebar?.classList.contains('is-open')) {
+      closeNavSidebar();
+    }
+  });
+
+  // Sidebar navigation menu items
+  document.getElementById('btn-sidebar-guide')?.addEventListener('click', () => {
+    closeNavSidebar();
+    openGuideModal();
+  });
+
+  document.getElementById('btn-sidebar-settings')?.addEventListener('click', () => {
+    closeNavSidebar();
+    openSettingsModal(false);
+  });
+
   // Fuel Tier Dropdown Change Listener
   document.getElementById('cfg-fuel-tier')?.addEventListener('change', (e) => {
     updateTierPreview(e.target.value);
@@ -1819,13 +1869,46 @@ const prevRate = document.getElementById('prev-rate-km');
 if (prevRate) prevRate.textContent = `${cur}${tier.ratePerKm.toFixed(2)} / km`;
 }
 
-function populateSettingsForm() {
-const cfg = state.config;
-const tierSelect = document.getElementById('cfg-fuel-tier');
-if (tierSelect) {
-tierSelect.value = String(cfg.selectedTier || 1);
+function populateSidebarFuelTiers() {
+  const select = document.getElementById('sidebar-fuel-tier-select');
+  if (!select) return;
+  select.innerHTML = '';
+  const cur = state.config.currency || '₱';
+
+  FUEL_TIERS.forEach(tier => {
+    const opt = document.createElement('option');
+    opt.value = String(tier.id);
+    opt.textContent = `${tier.name}: ${cur}${tier.fuelMin.toFixed(2)}–${cur}${tier.fuelMax.toFixed(2)}/L`;
+    select.appendChild(opt);
+  });
+
+  syncSidebarFuelTier();
 }
-updateTierPreview(cfg.selectedTier || 1);
+
+function syncSidebarFuelTier() {
+  const cfg = state.config;
+  const cur = cfg.currency || '₱';
+  const select = document.getElementById('sidebar-fuel-tier-select');
+  const activeId = cfg.selectedTier || 1;
+  if (select) {
+    select.value = String(activeId);
+  }
+
+  const tier = getActiveTier(activeId);
+  const baseEl = document.getElementById('sidebar-tier-base');
+  const extraEl = document.getElementById('sidebar-tier-extra');
+  if (baseEl) baseEl.textContent = `Base: ${cur}${tier.baseFare.toFixed(2)} (0–${tier.baseDistance.toFixed(1)} km)`;
+  if (extraEl) extraEl.textContent = `+${cur}${tier.ratePerKm.toFixed(2)}/km`;
+}
+
+function populateSettingsForm() {
+  const cfg = state.config;
+  const tierSelect = document.getElementById('cfg-fuel-tier');
+  if (tierSelect) {
+    tierSelect.value = String(cfg.selectedTier || 1);
+  }
+  updateTierPreview(cfg.selectedTier || 1);
+  syncSidebarFuelTier();
 }
 
 function showToast(message) {
@@ -1855,6 +1938,7 @@ return R * c;
 window.addEventListener('DOMContentLoaded', () => {
 loadConfig();
 updateUIConfigDisplays();
+populateSidebarFuelTiers();
 populateSettingsForm();
 recalculateFare();
 initMap();

@@ -34,7 +34,7 @@
     crossorigin="anonymous"></script>
 
   <!-- App Stylesheet with cache-busting -->
-  <link rel="stylesheet" href="style.css?v=31">
+  <link rel="stylesheet" href="style.css?v=39">
 </head>
 
 <body>
@@ -50,6 +50,14 @@
     <div class="top-search-overlay" id="top-search-overlay">
       <!-- Compact Route Active Bar (Visible when inputs are hidden) -->
       <div class="compact-route-bar" id="compact-route-bar" style="display: none;">
+        <button id="btn-compact-open-sidebar" class="compact-menu-btn" type="button"
+          title="Open Menu (Guidelines & Settings)" aria-label="Open Navigation Menu">
+          <svg class="dots-vertical-svg" viewBox="0 0 20 28" width="14" height="22" fill="currentColor" aria-hidden="true">
+            <circle cx="10" cy="4.5" r="2.8" />
+            <circle cx="10" cy="14" r="2.8" />
+            <circle cx="10" cy="23.5" r="2.8" />
+          </svg>
+        </button>
         <div class="compact-route-tag">
           <span id="compact-route-label">DISTANCE: 0.00 KM</span>
         </div>
@@ -67,43 +75,56 @@
 
       <!-- Waypoints / Address Input Card (Modern Ride-Hailing Style) -->
       <section class="control-section route-inputs-card compact-route-card" id="route-inputs-section">
-        <div class="search-inputs-wrapper">
-          <!-- Solid vertical stem connecting origin circle and destination square -->
-          <div class="route-connector-line" aria-hidden="true"></div>
-
-          <!-- Origin Card (Top) -->
-          <form class="route-input-row box-pickup" action="javascript:void(0);" onsubmit="return false;">
-            <div class="route-input-icon origin-icon" aria-hidden="true">
-              <span class="icon-inner-dot"></span>
-            </div>
-            <input type="text" id="pickup-search" class="compact-address-input" placeholder="Enter location"
-              autocomplete="off" spellcheck="false" enterkeyhint="search">
-            <button id="btn-clear-pickup" class="clear-btn" title="Clear pickup" style="display:none;"
-              type="button">&times;</button>
-            <button id="btn-current-location" class="location-action-btn" title="Use current location"
-              aria-label="Use current location" type="button">
-              <i class="ph-bold ph-crosshair"></i>
-            </button>
-            <div id="pickup-results" class="search-results-dropdown"></div>
-          </form>
-
-          <!-- Floating Overlapping Swap Button -->
-          <button id="btn-swap-locations" class="compact-swap-btn" title="Swap pickup & drop-off"
-            aria-label="Swap Locations" type="button">
-            <i class="ph-bold ph-arrows-down-up"></i>
+        <div class="search-layout-row">
+          <!-- Sidebar Menu Button beside first search bar -->
+          <button id="btn-open-sidebar" class="sidebar-menu-btn" type="button"
+            title="Open Menu (Guidelines & Settings)" aria-label="Open Navigation Menu">
+            <svg class="dots-vertical-svg" viewBox="0 0 20 28" width="16" height="25" fill="currentColor" aria-hidden="true">
+              <circle cx="10" cy="4.5" r="2.8" />
+              <circle cx="10" cy="14" r="2.8" />
+              <circle cx="10" cy="23.5" r="2.8" />
+            </svg>
           </button>
 
-          <!-- Destination Card (Bottom) -->
-          <form class="route-input-row box-dropoff" action="javascript:void(0);" onsubmit="return false;">
-            <div class="route-input-icon destination-icon" aria-hidden="true">
-              <span class="icon-inner-square"></span>
-            </div>
-            <input type="text" id="dropoff-search" class="compact-address-input" placeholder="Enter destination"
-              autocomplete="off" spellcheck="false" enterkeyhint="search">
-            <button id="btn-clear-dropoff" class="clear-btn" title="Clear drop-off" style="display:none;"
-              type="button">&times;</button>
-            <div id="dropoff-results" class="search-results-dropdown"></div>
-          </form>
+          <div class="search-inputs-wrapper">
+            <!-- Solid vertical stem connecting origin circle and destination square -->
+            <div class="route-connector-line" aria-hidden="true"></div>
+
+            <!-- Origin Card (Top) -->
+            <form class="route-input-row box-pickup" action="javascript:void(0);" onsubmit="return false;">
+              <div class="route-input-icon origin-icon" aria-hidden="true">
+                <span class="icon-inner-dot"></span>
+              </div>
+              <input type="text" id="pickup-search" class="compact-address-input" placeholder="Enter location"
+                autocomplete="off" spellcheck="false" enterkeyhint="search">
+              <button id="btn-clear-pickup" class="clear-btn" title="Clear pickup" style="display:none;"
+                type="button">&times;</button>
+              <button id="btn-current-location" class="location-action-btn" title="Use current location"
+                aria-label="Use current location" type="button">
+                <svg class="location-pin-svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
+                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                </svg>
+              </button>
+              <div id="pickup-results" class="search-results-dropdown"></div>
+            </form>
+
+            <!-- Destination Card (Bottom) -->
+            <form class="route-input-row box-dropoff" action="javascript:void(0);" onsubmit="return false;">
+              <div class="route-input-icon destination-icon" aria-hidden="true">
+                <span class="icon-inner-square"></span>
+              </div>
+              <input type="text" id="dropoff-search" class="compact-address-input" placeholder="Enter destination"
+                autocomplete="off" spellcheck="false" enterkeyhint="search">
+              <button id="btn-clear-dropoff" class="clear-btn" title="Clear drop-off" style="display:none;"
+                type="button">&times;</button>
+              <!-- Swap Button inside drop-off bar at far right — mirrors location pin above -->
+              <button id="btn-swap-locations" class="swap-action-btn" title="Swap pickup &amp; drop-off"
+                aria-label="Swap Locations" type="button">
+                <i class="ph-bold ph-arrows-down-up"></i>
+              </button>
+              <div id="dropoff-results" class="search-results-dropdown"></div>
+            </form>
+          </div>
         </div>
       </section>
     </div>
@@ -123,15 +144,6 @@
             <p class="brand-subtitle">City of Mati Tricycle and Tricycab Plete Calculator (Fair Earnings of Every Local
               Drivers)</p>
           </div>
-        </div>
-        <div class="header-actions">
-          <button id="btn-open-guide" class="icon-button" title="How to use & Features Guide"
-            aria-label="How to use FeelFare">
-            <i class="ph-bold ph-question"></i>
-          </button>
-          <button id="btn-open-settings" class="icon-button" title="Fare Tariff Settings" aria-label="Tariff Settings">
-            <i class="ph-bold ph-gear-six"></i>
-          </button>
         </div>
       </header>
 
@@ -302,7 +314,7 @@
               in the search bars and press <kbd>Enter</kbd> to pick the top match instantly.
             </li>
             <li>
-              <strong>Use GPS Location:</strong> Tap the crosshair button (<i class="ph-bold ph-crosshair"></i>) on the
+              <strong>Use GPS Location:</strong> Tap the location pin button (<svg class="guide-pin-svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="vertical-align: -2px; display: inline-block;" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>) on the
               right of the pickup bar to automatically pin your current location.
             </li>
             <li>
@@ -367,6 +379,43 @@
     </div>
   </div>
 
+  <!-- Navigation Sidebar Backdrop -->
+  <div id="nav-sidebar-backdrop" class="nav-sidebar-backdrop" aria-hidden="true"></div>
+
+  <!-- Slide-Out Navigation Drawer (Guidelines & Settings) -->
+  <aside id="nav-sidebar" class="nav-sidebar" aria-label="Navigation Menu" aria-hidden="true">
+    <div class="nav-sidebar-header">
+      <div class="nav-sidebar-brand">
+        <div class="nav-sidebar-logo" aria-hidden="true">
+          <i class="ph-bold ph-navigation-arrow"></i>
+        </div>
+        <div class="nav-sidebar-meta">
+          <h2 class="nav-sidebar-title">FeelFare</h2>
+          <p class="nav-sidebar-subtitle">City of Mati Tricycle and Tricycab Plete Calculator</p>
+        </div>
+      </div>
+      <button id="btn-close-nav-sidebar" class="nav-sidebar-close-btn" type="button" title="Close Menu" aria-label="Close Menu">
+        <i class="ph-bold ph-x"></i>
+      </button>
+    </div>
+
+    <div class="nav-sidebar-content">
+
+      <!-- Navigation Menu List -->
+      <nav class="nav-menu-list" aria-label="Menu Items">
+        <button id="btn-sidebar-guide" class="nav-menu-item" type="button">
+          <span class="nav-menu-label">User Guidelines</span>
+        </button>
+
+        <button id="btn-sidebar-settings" class="nav-menu-item" type="button">
+          <span class="nav-menu-label">Tariff Settings</span>
+        </button>
+      </nav>
+
+
+    </div>
+  </aside>
+
   <!-- Notification Toast -->
   <div id="toast" class="toast-notification"></div>
 
@@ -375,7 +424,7 @@
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
   <!-- App JS with cache-busting -->
-  <script src="app.js?v=16"></script>
+  <script src="app.js?v=18"></script>
 </body>
 
 </html>
