@@ -1510,6 +1510,16 @@ recalculateFare();
 
   const closeNavSidebar = () => {
     if (navSidebar) {
+      // If a descendant inside the sidebar currently has focus, blur it or restore focus to avoid aria-hidden violation
+      if (navSidebar.contains(document.activeElement)) {
+        if (typeof document.activeElement.blur === 'function') {
+          document.activeElement.blur();
+        }
+        const openBtn = document.getElementById('btn-open-sidebar');
+        if (openBtn) {
+          openBtn.focus();
+        }
+      }
       navSidebar.classList.remove('is-open');
       navSidebar.setAttribute('aria-hidden', 'true');
     }
@@ -1943,5 +1953,14 @@ populateSettingsForm();
 recalculateFare();
 initMap();
 setupEventListeners();
+
+  // Network Status Feedback for PWA & Offline Usage
+  window.addEventListener('offline', () => {
+    showToast('⚠️ Offline mode: local landmarks & estimated fares available.');
+  });
+  window.addEventListener('online', () => {
+    showToast('🌐 Back online! Live map & route optimization restored.');
+  });
 });
+
 

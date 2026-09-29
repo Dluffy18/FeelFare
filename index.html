@@ -16,7 +16,12 @@
 
   <!-- Content Security Policy (Defense-in-depth XSS & Injection Prevention) -->
   <meta http-equiv="Content-Security-Policy"
-    content="default-src 'self'; script-src 'self' https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; font-src 'self' https://fonts.gstatic.com https://unpkg.com data:; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.tile.openstreetmap.fr https://server.arcgisonline.com https://unpkg.com; connect-src 'self' https://unpkg.com https://router.project-osrm.org http://router.project-osrm.org https://photon.komoot.io https://nominatim.openstreetmap.org; object-src 'none'; base-uri 'self';">
+    content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; font-src 'self' https://fonts.gstatic.com https://unpkg.com data:; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.tile.openstreetmap.fr https://server.arcgisonline.com https://unpkg.com; connect-src 'self' https://unpkg.com https://router.project-osrm.org http://router.project-osrm.org https://photon.komoot.io https://nominatim.openstreetmap.org; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self';">
+
+  <!-- Web App Manifest & App Icons (PWA & Offline Capability) -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="assets/icon.svg">
+  <link rel="apple-touch-icon" href="assets/icon.svg">
 
   <!-- Google Fonts: Plus Jakarta Sans -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -34,7 +39,7 @@
     crossorigin="anonymous"></script>
 
   <!-- App Stylesheet with cache-busting -->
-  <link rel="stylesheet" href="style.css?v=39">
+  <link rel="stylesheet" href="style.css?v=42">
 </head>
 
 <body>
@@ -52,7 +57,8 @@
       <div class="compact-route-bar" id="compact-route-bar" style="display: none;">
         <button id="btn-compact-open-sidebar" class="compact-menu-btn" type="button"
           title="Open Menu (Guidelines & Settings)" aria-label="Open Navigation Menu">
-          <svg class="dots-vertical-svg" viewBox="0 0 20 28" width="14" height="22" fill="currentColor" aria-hidden="true">
+          <svg class="dots-vertical-svg" viewBox="0 0 20 28" width="14" height="22" fill="currentColor"
+            aria-hidden="true">
             <circle cx="10" cy="4.5" r="2.8" />
             <circle cx="10" cy="14" r="2.8" />
             <circle cx="10" cy="23.5" r="2.8" />
@@ -77,9 +83,10 @@
       <section class="control-section route-inputs-card compact-route-card" id="route-inputs-section">
         <div class="search-layout-row">
           <!-- Sidebar Menu Button beside first search bar -->
-          <button id="btn-open-sidebar" class="sidebar-menu-btn" type="button"
-            title="Open Menu (Guidelines & Settings)" aria-label="Open Navigation Menu">
-            <svg class="dots-vertical-svg" viewBox="0 0 20 28" width="16" height="25" fill="currentColor" aria-hidden="true">
+          <button id="btn-open-sidebar" class="sidebar-menu-btn" type="button" title="Open Menu (Guidelines & Settings)"
+            aria-label="Open Navigation Menu">
+            <svg class="dots-vertical-svg" viewBox="0 0 20 28" width="16" height="25" fill="currentColor"
+              aria-hidden="true">
               <circle cx="10" cy="4.5" r="2.8" />
               <circle cx="10" cy="14" r="2.8" />
               <circle cx="10" cy="23.5" r="2.8" />
@@ -101,8 +108,10 @@
                 type="button">&times;</button>
               <button id="btn-current-location" class="location-action-btn" title="Use current location"
                 aria-label="Use current location" type="button">
-                <svg class="location-pin-svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
-                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                <svg class="location-pin-svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"
+                  aria-hidden="true">
+                  <path
+                    d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
                 </svg>
               </button>
               <div id="pickup-results" class="search-results-dropdown"></div>
@@ -141,8 +150,6 @@
         <div class="brand">
           <div>
             <h1 class="brand-title">FeelFare</h1>
-            <p class="brand-subtitle">City of Mati Tricycle and Tricycab Plete Calculator (Fair Earnings of Every Local
-              Drivers)</p>
           </div>
         </div>
       </header>
@@ -314,7 +321,12 @@
               in the search bars and press <kbd>Enter</kbd> to pick the top match instantly.
             </li>
             <li>
-              <strong>Use GPS Location:</strong> Tap the location pin button (<svg class="guide-pin-svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="vertical-align: -2px; display: inline-block;" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>) on the
+              <strong>Use GPS Location:</strong> Tap the location pin button (<svg class="guide-pin-svg"
+                viewBox="0 0 24 24" width="14" height="14" fill="currentColor"
+                style="vertical-align: -2px; display: inline-block;" aria-hidden="true">
+                <path
+                  d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+              </svg>) on the
               right of the pickup bar to automatically pin your current location.
             </li>
             <li>
@@ -387,14 +399,16 @@
     <div class="nav-sidebar-header">
       <div class="nav-sidebar-brand">
         <div class="nav-sidebar-logo" aria-hidden="true">
-          <i class="ph-bold ph-navigation-arrow"></i>
+          <img src="assets/city-of-mati-logo.png?v=2" alt="City of Mati Official Logo" width="44" height="44" class="nav-sidebar-logo-img">
         </div>
         <div class="nav-sidebar-meta">
           <h2 class="nav-sidebar-title">FeelFare</h2>
-          <p class="nav-sidebar-subtitle">City of Mati Tricycle and Tricycab Plete Calculator</p>
+          <p class="nav-sidebar-subtitle">City of Mati Tricycle and Tricycab Plete Calculator (Fair Earnings of Every
+            Local Drivers)</p>
         </div>
       </div>
-      <button id="btn-close-nav-sidebar" class="nav-sidebar-close-btn" type="button" title="Close Menu" aria-label="Close Menu">
+      <button id="btn-close-nav-sidebar" class="nav-sidebar-close-btn" type="button" title="Close Menu"
+        aria-label="Close Menu">
         <i class="ph-bold ph-x"></i>
       </button>
     </div>
@@ -424,7 +438,18 @@
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
   <!-- App JS with cache-busting -->
-  <script src="app.js?v=18"></script>
+  <script src="app.js?v=19"></script>
+
+  <!-- Service Worker Registration for Offline Support & PWA (requires http/https protocol) -->
+  <script>
+    if ('serviceWorker' in navigator && (location.protocol === 'http:' || location.protocol === 'https:')) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then((reg) => console.log('[CalFair] ServiceWorker active, scope:', reg.scope))
+          .catch((err) => console.warn('[CalFair] ServiceWorker registration failed:', err));
+      });
+    }
+  </script>
 </body>
 
 </html>

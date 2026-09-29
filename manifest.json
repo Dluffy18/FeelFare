@@ -1,0 +1,20 @@
+{
+  "name": "CalFair - Mati City Fare & Route Calculator",
+  "short_name": "CalFair",
+  "description": "Calculate accurate motorized pedicab and tricycle fares based on official local distance, point-to-point road routing, and municipal tariff policies.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#111827",
+  "theme_color": "#111827",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "assets/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["navigation", "travel", "utilities"]
+}
