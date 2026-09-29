@@ -1223,8 +1223,123 @@ recalculateFare();
     }
   });
 
-  // Current Location (GPS) Geolocation Trigger
-  const triggerGeolocate = () => {
+  // Current Location (GPS) Geolocation Trigger with Fresh Fix Assurance
+  let activeGeoWatchId = null;
+  let geoTimeoutTimer = null;
+  let geoGraceTimer = null;
+
+  const acquireFreshPosition = () => {
+    return new Promise((resolve, reject) => {
+      if (!('geolocation' in navigator)) {
+        return reject({ code: 'NOT_SUPPORTED', message: 'Geolocation is not supported by your browser.' });
+      }
+
+      // Cleanup any active watch or timers from a previous request
+      const cleanup = () => {
+        if (activeGeoWatchId !== null) {
+          navigator.geolocation.clearWatch(activeGeoWatchId);
+          activeGeoWatchId = null;
+        }
+        if (geoTimeoutTimer !== null) {
+          clearTimeout(geoTimeoutTimer);
+          geoTimeoutTimer = null;
+        }
+        if (geoGraceTimer !== null) {
+          clearTimeout(geoGraceTimer);
+          geoGraceTimer = null;
+        }
+      };
+
+      cleanup();
+
+      const requestStartTime = Date.now();
+      let bestFreshCandidate = null;
+      let hasFinished = false;
+
+      const finishSuccess = (position) => {
+        if (hasFinished) return;
+        hasFinished = true;
+        cleanup();
+        resolve(position);
+      };
+
+      const finishError = (err) => {
+        if (hasFinished) return;
+        hasFinished = true;
+        cleanup();
+        reject(err);
+      };
+
+      // Safety timeout: 10 seconds total
+      geoTimeoutTimer = setTimeout(() => {
+        if (bestFreshCandidate) {
+          finishSuccess(bestFreshCandidate);
+        } else {
+          // As a fallback before giving up, attempt a single-shot request
+          navigator.geolocation.getCurrentPosition(
+            (pos) => finishSuccess(pos),
+            (err) => finishError(err || { code: 3, message: 'Location request timed out.' }),
+            { enableHighAccuracy: true, timeout: 3000, maximumAge: 0 }
+          );
+        }
+      }, 10000);
+
+      try {
+        activeGeoWatchId = navigator.geolocation.watchPosition(
+          (pos) => {
+            if (hasFinished) return;
+
+            // Check if fix is fresh (recorded after user initiated the request or within 1.5s tolerance)
+            // Stale cached fixes from earlier user locations typically carry timestamps minutes/hours old
+            const posTime = (pos && typeof pos.timestamp === 'number') ? pos.timestamp : Date.now();
+            const isFresh = (posTime >= requestStartTime - 1500);
+
+            const accuracy = (pos.coords && typeof pos.coords.accuracy === 'number') ? pos.coords.accuracy : 999;
+
+            // Track best fresh candidate
+            if (!bestFreshCandidate || accuracy < (bestFreshCandidate.coords.accuracy || 999)) {
+              if (isFresh) {
+                bestFreshCandidate = pos;
+              }
+            }
+
+            // High precision fix (accuracy <= 30 meters) that is fresh: accept immediately!
+            if (isFresh && accuracy <= 30) {
+              finishSuccess(pos);
+              return;
+            }
+
+            // If we received an acceptable fresh fix (accuracy <= 75m), give it a short 2s grace period to refine satellite lock
+            if (isFresh && accuracy <= 75 && !geoGraceTimer) {
+              geoGraceTimer = setTimeout(() => {
+                if (bestFreshCandidate) {
+                  finishSuccess(bestFreshCandidate);
+                }
+              }, 2000);
+            }
+          },
+          (err) => {
+            // If watchPosition reports an error
+            if (bestFreshCandidate) {
+              finishSuccess(bestFreshCandidate);
+            } else if (err && (err.code === 1 || err.code === err.PERMISSION_DENIED)) {
+              finishError(err);
+            }
+            // For transient search timeouts, keep waiting until geoTimeoutTimer fires
+          },
+          {
+            enableHighAccuracy: true,
+            maximumAge: 0,
+            timeout: 10000
+          }
+        );
+      } catch (e) {
+        finishError(e);
+      }
+    });
+  };
+
+  const triggerGeolocate = async () => {
     if (!('geolocation' in navigator)) {
       showToast('Geolocation is not supported by your browser.');
       return;
@@ -1237,43 +1352,37 @@ recalculateFare();
 
     showToast('Locating your position via GPS...');
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        if (locBtn) locBtn.classList.remove('is-locating');
-        if (legacyBtn) legacyBtn.classList.remove('active');
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
-        showToast('Location acquired! Resolving address...');
-        const addr = await reverseGeocode(lat, lng);
-        setPointA([lat, lng], addr);
-        if (!state.pointB) {
-          centerMapOnVisiblePoint([lat, lng], 16);
-        }
-        showToast('Current location pinned as Pickup!');
+    try {
+      const position = await acquireFreshPosition();
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
 
-        // If destination is not yet set, advance focus to destination input
-        const dropoffInput = document.getElementById('dropoff-search');
-        if (dropoffInput && !dropoffInput.value.trim()) {
-          dropoffInput.focus();
-        }
-      },
-      (err) => {
-        if (locBtn) locBtn.classList.remove('is-locating');
-        if (legacyBtn) legacyBtn.classList.remove('active');
-        if (err.code === err.PERMISSION_DENIED) {
-          showToast('Location permission denied. Please allow location access in your browser.');
-        } else if (err.code === err.TIMEOUT) {
-          showToast('Location request timed out. Please try again.');
-        } else {
-          showToast('Unable to determine your current location.');
-        }
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
+      showToast('Location acquired! Resolving address...');
+      const addr = await reverseGeocode(lat, lng);
+
+      setPointA([lat, lng], addr);
+      if (!state.pointB) {
+        centerMapOnVisiblePoint([lat, lng], 16);
       }
-    );
+      showToast('Current location pinned as Pickup!');
+
+      // If destination is not yet set, advance focus to destination input
+      const dropoffInput = document.getElementById('dropoff-search');
+      if (dropoffInput && !dropoffInput.value.trim()) {
+        dropoffInput.focus();
+      }
+    } catch (err) {
+      if (err && (err.code === 1 || err.code === (err.PERMISSION_DENIED || 1))) {
+        showToast('Location permission denied. Please allow location access in your browser.');
+      } else if (err && (err.code === 3 || err.code === (err.TIMEOUT || 3))) {
+        showToast('Location request timed out. Please try again.');
+      } else {
+        showToast('Unable to determine your current location.');
+      }
+    } finally {
+      if (locBtn) locBtn.classList.remove('is-locating');
+      if (legacyBtn) legacyBtn.classList.remove('active');
+    }
   };
 
   document.getElementById('btn-current-location')?.addEventListener('click', triggerGeolocate);
