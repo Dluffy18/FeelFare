@@ -1,0 +1,21 @@
+# Pings the Supabase database twice a week so the free project is never paused for inactivity.
+# Uses the public anon key and a made-up share id; it reads nothing and writes nothing.
+name: Keep Supabase awake
+
+on:
+  schedule:
+    - cron: '0 3 * * 1,4'   # Mondays and Thursdays, 03:00 UTC
+  workflow_dispatch:         # lets you run it by hand from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call get_share with a dummy id
+        run: |
+          curl --fail --silent --show-error --max-time 30 \
+            -X POST "https://odhstttenhbsyyonrukn.supabase.co/rest/v1/rpc/get_share" \
+            -H "apikey: sb_publishable_sINNl2FKU-f9TahxknCQKQ_9mYxecOH" \
+            -H "Authorization: Bearer sb_publishable_sINNl2FKU-f9TahxknCQKQ_9mYxecOH" \
+            -H "Content-Type: application/json" \
+            -d '{"p_id":"keepalive"}'
