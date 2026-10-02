@@ -1,0 +1,7 @@
+# Local-only files (kept on the computer, not published)
+scratch/
+.impeccable/
+.agents/
+server.ps1
+DESIGN.md
+PRODUCT.md

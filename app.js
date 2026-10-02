@@ -23,9 +23,15 @@ function getActiveTier(tierId = state?.config?.selectedTier) {
   return FUEL_TIERS.find(t => t.id === parsedId) || FUEL_TIERS[0];
 }
 
+// The default tier is set by the owner in tariff-config.js; falls back to Tier 1 if missing or invalid
+const OWNER_DEFAULT_TIER = (() => {
+  const id = parseInt(window.CALFAIR_TARIFF?.defaultTier, 10);
+  return FUEL_TIERS.some(t => t.id === id) ? id : 1;
+})();
+
 const DEFAULT_CONFIG = {
   currency: '₱',
-  selectedTier: 1,        // Default: Tier 1 (₱50.00 - ₱59.99 / Base ₱15 for 0-3km / +₱2/km)
+  selectedTier: OWNER_DEFAULT_TIER,
   avgSpeedKmh: 28         // Typical motorized pedicab urban speed in km/h
 };
 
@@ -115,7 +121,7 @@ function resetToDefaultView(animate = true) {
     let sheetHeight = 0;
     if (sheet) {
       if (sheet.classList.contains('is-collapsed')) {
-        sheetHeight = 86;
+        sheetHeight = sheet.offsetHeight || 190;
       } else {
         sheetHeight = sheet.offsetHeight || (window.innerHeight * 0.50);
       }
@@ -136,7 +142,7 @@ function resetToDefaultView(animate = true) {
     const sidebar = document.getElementById('sidebar-panel');
     const sidebarWidth = sidebar ? sidebar.offsetWidth + 30 : 470;
     map.fitBounds(DEFAULT_MAP_BOUNDS, {
-      paddingTopLeft: [sidebarWidth, 60],
+      paddingTopLeft: [sidebarWidth, 150],
       paddingBottomRight: [60, 60],
       maxZoom: 15,
       animate: animate
@@ -155,7 +161,7 @@ function centerMapOnVisiblePoint(coords, zoom = 15, animate = true) {
     let sheetHeight = 0;
     if (sheet) {
       if (sheet.classList.contains('is-collapsed')) {
-        sheetHeight = 86;
+        sheetHeight = sheet.offsetHeight || 190;
       } else {
         sheetHeight = sheet.offsetHeight || (window.innerHeight * 0.50);
       }
@@ -177,7 +183,7 @@ function centerMapOnVisiblePoint(coords, zoom = 15, animate = true) {
     const sidebarWidth = sidebar ? sidebar.offsetWidth + 30 : 470;
 
     map.fitBounds(bounds, {
-      paddingTopLeft: [sidebarWidth, 60],
+      paddingTopLeft: [sidebarWidth, 150],
       paddingBottomRight: [60, 60],
       maxZoom: zoom,
       animate: animate
@@ -194,7 +200,6 @@ zoomControl: false
 }).setView(defaultCoords, 14);
 
 // Zoom controls on top-right below action bar
-L.control.zoom({ position: 'bottomright' }).addTo(map);
 
 // 100% Free Tile Providers (No API Key Required, No Watermarks, No 403 Blocks)
 const streetHot = L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
@@ -215,11 +220,16 @@ attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographi
 });
 
 // Basemap Switcher
-L.control.layers({
+const layersControl = L.control.layers({
 'Detailed Streets': streetHot,
 'Standard Streets': streetFr,
 'Satellite View': esriSatellite
 }, null, { position: 'bottomright' }).addTo(map);
+
+// Collapse the switcher as soon as a basemap is chosen
+map.on('baselayerchange', () => {
+  setTimeout(() => layersControl.collapse(), 0);
+});
 
   // Map Click Listener
   map.on('click', handleMapClick);
@@ -260,6 +270,7 @@ calculateRoute();
 state.markerA.setLatLng(coords);
 }
 
+updateNoticeState();
 if (triggerRoute) {
 calculateRoute();
 }
@@ -291,6 +302,7 @@ calculateRoute();
 state.markerB.setLatLng(coords);
 }
 
+updateNoticeState();
 if (triggerRoute) {
 calculateRoute();
 }
@@ -514,6 +526,7 @@ async function calculateRoute() {
 
     // Exact road distance in kilometers
     state.routeDistanceKm = selectedRoute.distance / 1000;
+    state.isEstimate = false;
 
     // Calculate motorized pedicab travel time based on avg 25-30 km/h with 1 min buffer
     const speedKmMin = state.config.avgSpeedKmh / 60;
@@ -524,7 +537,7 @@ async function calculateRoute() {
 
     // Update metrics UI
     document.getElementById('metric-distance').textContent = `${state.routeDistanceKm.toFixed(2)} km`;
-    document.getElementById('metric-duration').textContent = `~${state.routeDurationMins} mins`;
+    document.getElementById('metric-duration').textContent = `${state.routeDurationMins} min`;
 
     // Recalculate Fare
     recalculateFare();
@@ -539,13 +552,14 @@ async function calculateRoute() {
     // Fallback: Haversine distance if network fails
     const directKm = calculateHaversineDistance(latA, lonA, latB, lonB) * 1.25; // 1.25 road curvature factor
     state.routeDistanceKm = directKm;
+    state.isEstimate = true;
     state.routeDurationMins = Math.max(2, Math.round(directKm * 2.5));
 
     // Draw straight line fallback
     renderRoutePolyline([[latA, lonA], [latB, lonB]]);
 
     document.getElementById('metric-distance').textContent = `${state.routeDistanceKm.toFixed(2)} km (est.)`;
-    document.getElementById('metric-duration').textContent = `~${state.routeDurationMins} mins`;
+    document.getElementById('metric-duration').textContent = `${state.routeDurationMins} min`;
     recalculateFare();
 
     // Hide header & route input card to maximize map view
@@ -573,9 +587,15 @@ function enterCompactRouteMode() {
   const labelEl = document.getElementById('compact-route-label');
   if (labelEl) {
     const dist = state.routeDistanceKm ? `${state.routeDistanceKm.toFixed(2)} km` : '0.00 km';
-    labelEl.textContent = `Distance: ${dist}`;
+    const fare = document.getElementById('metric-fare-display')?.textContent || '';
+    labelEl.textContent = `${dist}${state.isEstimate ? ' (est.)' : ''} · ${fare}`;
     labelEl.title = `Distance from ${state.addressA || 'Point A'} to ${state.addressB || 'Point B'}: ${dist}`;
   }
+  const shortName = (addr, fallback) => (addr || fallback).split(',')[0].trim();
+  const fromEl = document.getElementById('compact-route-from');
+  const toEl = document.getElementById('compact-route-to');
+  if (fromEl) fromEl.textContent = shortName(state.addressA, 'Pickup');
+  if (toEl) toEl.textContent = shortName(state.addressB, 'Destination');
 
   // Re-frame the map with smooth recentering into newly enlarged viewport
   setTimeout(() => {
@@ -636,7 +656,7 @@ if (panel) {
 if (isCompact) {
 sheetHeight = panel.offsetHeight || 220;
 } else if (panel.classList.contains('is-collapsed')) {
-sheetHeight = 86;
+sheetHeight = panel.offsetHeight || 190;
 } else {
 sheetHeight = panel.offsetHeight || (window.innerHeight * 0.52);
 }
@@ -661,24 +681,16 @@ sheetHeight = window.innerHeight * 0.52;
       animate: true
     });
 } else {
-// Desktop: offset for left sidebar or compact bottom card
-if (isCompact) {
-const compactHeight = panel ? panel.offsetHeight : 240;
+// Desktop: notice docked left, fields strip floating over the map top-left
+const sidebarWidth = panel ? panel.offsetWidth + 40 : 480;
+const topOverlay = document.getElementById('top-search-overlay');
+const topHeight = topOverlay ? topOverlay.offsetHeight + 16 : 120;
 map.fitBounds(bounds, {
-paddingTopLeft: [60, 60],
-paddingBottomRight: [60, compactHeight + 30],
-maxZoom: 16,
-animate: true
-});
-} else {
-const sidebarWidth = panel ? panel.offsetWidth + 30 : 470;
-map.fitBounds(bounds, {
-paddingTopLeft: [sidebarWidth, 60],
+paddingTopLeft: [sidebarWidth, topHeight + 30],
 paddingBottomRight: [60, 60],
 maxZoom: 16,
 animate: true
 });
-}
 }
 }
 
@@ -687,14 +699,11 @@ if (state.routePolyline) {
 map.removeLayer(state.routePolyline);
 }
 
-// Draw vibrant glowing polyline with border
-state.routePolyline = L.polyline(latlngs, {
-color: '#059669',
-weight: 6,
-opacity: 0.9,
-lineJoin: 'round',
-lineCap: 'round'
-}).addTo(map);
+// Inked route over the greyscale exhibit: paper casing under an ink line
+state.routePolyline = L.featureGroup([
+  L.polyline(latlngs, { color: '#F4F5F2', weight: 11, opacity: 1, lineJoin: 'round', lineCap: 'round', interactive: false }),
+  L.polyline(latlngs, { color: '#16813F', weight: 5, opacity: 1, lineJoin: 'round', lineCap: 'round', interactive: false })
+]).addTo(map);
 
 // Automatically center route in visible open screen area
 const bounds = L.latLngBounds(latlngs);
@@ -732,8 +741,11 @@ const totalFare = Math.max(0, subtotal - discountAmount);
 const tripBadgeText = document.getElementById('trip-badge-text') || document.getElementById('trip-badge');
 if (tripBadgeText) tripBadgeText.textContent = tier.name;
 
+const tripBadgeRange = document.getElementById('trip-badge-range');
+if (tripBadgeRange) tripBadgeRange.textContent = `${cur}${tier.fuelMin.toFixed(2)}–${tier.fuelMax.toFixed(2)}/L`;
+
 const labelBaseFare = document.getElementById('label-base-fare');
-if (labelBaseFare) labelBaseFare.textContent = `Base Fare (First ${tier.baseDistance.toFixed(1)} km)`;
+if (labelBaseFare) labelBaseFare.textContent = `Base fare, first ${tier.baseDistance.toFixed(1)} km`;
 const valBaseFare = document.getElementById('val-base-fare');
 if (valBaseFare) valBaseFare.textContent = `${cur}${baseFare.toFixed(2)}`;
 
@@ -744,7 +756,7 @@ if (extraDistFare > 0) {
 extraDistEl.style.display = 'flex';
 const labelExtraDist = document.getElementById('label-extra-dist');
 if (labelExtraDist) {
-labelExtraDist.textContent = `Extra Distance (${extraKm.toFixed(2)} km × ${cur}${tier.ratePerKm.toFixed(2)})`;
+labelExtraDist.textContent = `Succeeding ${extraKm.toFixed(2)} km × ${cur}${tier.ratePerKm.toFixed(2)}`;
 }
 const valExtraDist = document.getElementById('val-extra-dist');
 if (valExtraDist) {
@@ -778,6 +790,147 @@ const metricFareDisplay = document.getElementById('metric-fare-display');
 if (metricFareDisplay) {
 metricFareDisplay.textContent = `${cur}${roundedFare}`;
 }
+
+const totalLine = document.getElementById('line-total');
+if (totalLine) {
+  totalLine.style.display = dist > 0 ? 'flex' : 'none';
+  const raw = document.getElementById('val-total-raw');
+  if (raw) raw.textContent = `${cur}${totalFare.toFixed(2)} → ${cur}${roundedFare}`;
+}
+const footTier = document.getElementById('notice-foot-tier');
+if (footTier) footTier.textContent = `${tier.name} (${cur}${tier.fuelMin.toFixed(2)}–${tier.fuelMax.toFixed(2)}/L)`;
+
+updateNoticeState(tier, roundedFare);
+renderKmRuler(dist, tier);
+}
+
+// ============================================================================
+// 6b. Notice states, rubber stamp & km ruler
+// ============================================================================
+
+let lastStampedKey = '';
+
+function updateNoticeState(tier = getActiveTier(), roundedFare = null) {
+  const panel = document.getElementById('sidebar-panel');
+  if (!panel) return;
+  const hasRoute = !!(state.pointA && state.pointB && state.routeDistanceKm > 0);
+  const nextState = hasRoute ? 'computed' : (state.pointA || state.pointB ? 'pickup' : 'blank');
+  panel.dataset.state = nextState;
+  panel.dataset.estimate = String(!!state.isEstimate);
+
+  const status = document.getElementById('notice-status');
+  const caption = document.getElementById('stamp-caption');
+  const foot = document.getElementById('stamp-foot');
+
+  if (nextState === 'computed') {
+    const when = new Date().toLocaleString('en-PH', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+    if (caption) caption.textContent = state.hasDiscount ? 'Fare due · 20% off' : 'Fare due';
+    if (foot) foot.textContent = `${tier.name} · ${when}`;
+    if (status) {
+      status.textContent = state.isEstimate
+        ? 'Computed from an estimated distance (no road route available).'
+        : 'Computed from the road route and the city tariff.';
+    }
+    // Land the stamp only when the figure actually changes
+    const key = `${roundedFare}|${tier.id}|${state.hasDiscount}`;
+    const stamp = document.getElementById('fare-stamp');
+    if (stamp && key !== lastStampedKey) {
+      lastStampedKey = key;
+      stamp.classList.remove('is-stamping');
+      void stamp.offsetWidth;
+      stamp.classList.add('is-stamping');
+    }
+  } else {
+    lastStampedKey = '';
+    const amount = document.getElementById('total-fare-amount');
+    if (amount) amount.textContent = '—';
+    const metricFare = document.getElementById('metric-fare-display');
+    if (metricFare) metricFare.textContent = '—';
+    if (caption) caption.textContent = 'Not yet computed';
+    if (foot) foot.textContent = `${tier.name} tariff`;
+    if (status) {
+      status.textContent = nextState === 'pickup'
+        ? (state.pointA ? 'Pickup set. Now choose a destination.' : 'Destination set. Now choose a pickup.')
+        : 'Set a pickup and a destination to compute the fare.';
+    }
+  }
+}
+
+function renderKmRuler(dist, tier = getActiveTier()) {
+  const ruler = document.getElementById('km-ruler');
+  if (!ruler) return;
+  const base = tier.baseDistance;
+  const scale = Math.max(dist, base) * (dist > base ? 1 : 1.25);
+  const pct = (km) => `${Math.min(100, (km / scale) * 100).toFixed(2)}%`;
+  const step = scale > 40 ? 10 : scale > 16 ? 5 : 1;
+
+  let ticks = '';
+  for (let km = step; km < scale; km += step) {
+    ticks += `<span class="ruler-tick" style="left:${pct(km)}"></span>`;
+    // Number the ticks, leaving room for the base and end labels
+    const nearBase = Math.abs(km - base) / scale < 0.12;
+    const nearEnd = km / scale > 0.72;
+    if (dist > 0 && !nearBase && !nearEnd) {
+      ticks += `<span class="ruler-label at-km" style="left:${pct(km)}">${km}</span>`;
+    }
+  }
+
+  const endLabel = dist > 0 ? `${dist.toFixed(2)} km trip` : `Base fare covers the first ${base.toFixed(0)} km`;
+  ruler.innerHTML =
+    `<div class="ruler-bar"><span class="ruler-base" style="width:${pct(base)}"></span>` +
+    `<span class="ruler-trip" style="width:${pct(dist)}"></span></div>${ticks}` +
+    `<span class="ruler-label at-start">0</span>` +
+    `<span class="ruler-label at-base" style="left:${pct(base)}">${base.toFixed(0)} km base</span>` +
+    `<span class="ruler-label at-end">${endLabel}</span>`;
+
+  // Keep the base label clear of the end label on short scales
+  const baseLabel = ruler.querySelector('.at-base');
+  if (baseLabel && dist <= 0) baseLabel.style.display = 'none';
+
+  // Merge into one line when the end label would overlap the base label
+  const endEl = ruler.querySelector('.at-end');
+  if (baseLabel && endEl && dist > 0 && baseLabel.offsetWidth) {
+    const b = baseLabel.getBoundingClientRect();
+    const e = endEl.getBoundingClientRect();
+    if (b.right + 6 > e.left) {
+      baseLabel.style.display = 'none';
+      endEl.textContent = `${base.toFixed(0)} km base · ${endLabel}`;
+    }
+  }
+}
+
+function fareForTier(tier, dist = state.routeDistanceKm || 0) {
+  const subtotal = tier.baseFare + Math.max(0, dist - tier.baseDistance) * tier.ratePerKm;
+  return Math.round(subtotal * (state.hasDiscount ? 0.8 : 1));
+}
+
+function renderTierStrips(selectedId) {
+  const wrap = document.getElementById('tier-strips');
+  if (!wrap) return;
+  const cur = state.config.currency || '₱';
+  const hasRoute = state.routeDistanceKm > 0;
+  wrap.innerHTML = '';
+  FUEL_TIERS.forEach(tier => {
+    const btn = document.createElement('div');
+    const isActive = tier.id === parseInt(selectedId, 10);
+    btn.className = 'tier-strip' + (isActive ? ' is-active' : '');
+    if (isActive) btn.setAttribute('aria-current', 'true');
+    btn.dataset.tier = String(tier.id);
+
+    const name = document.createElement('span');
+    name.className = 'strip-name';
+    name.textContent = tier.name;
+    const range = document.createElement('span');
+    range.className = 'strip-range';
+    range.textContent = `${cur}${tier.fuelMin.toFixed(2)}–${tier.fuelMax.toFixed(2)}/L`;
+    const fare = document.createElement('span');
+    fare.className = 'strip-fare';
+    fare.textContent = `${cur}${hasRoute ? fareForTier(tier) : tier.baseFare.toFixed(0)}`;
+    fare.title = hasRoute ? 'This trip under this tier' : 'Base fare, first 3 km';
+
+    btn.append(name, fare, range);
+    wrap.appendChild(btn);
+  });
 }
 
 // ============================================================================
@@ -1136,6 +1289,8 @@ function setupEventListeners() {
 document.getElementById('toggle-discount').addEventListener('change', (e) => {
 state.hasDiscount = e.target.checked;
 recalculateFare();
+// Bring the updated fare stamp back into view
+document.querySelector('.sidebar-content')?.scrollTo({ top: 0, behavior: 'smooth' });
 });
 
   // Swap locations button
@@ -1171,8 +1326,10 @@ recalculateFare();
       state.routePolyline = null;
     }
     document.getElementById('metric-distance').textContent = '0.00 km';
-    document.getElementById('metric-duration').textContent = '0 mins';
+    document.getElementById('metric-duration').textContent = '0 min';
     document.getElementById('metric-fare-display').textContent = '₱0.00';
+    state.routeDistanceKm = 0;
+    state.routeDurationMins = 0;
     recalculateFare();
 
     if (!state.pointB) {
@@ -1197,8 +1354,10 @@ recalculateFare();
       state.routePolyline = null;
     }
     document.getElementById('metric-distance').textContent = '0.00 km';
-    document.getElementById('metric-duration').textContent = '0 mins';
+    document.getElementById('metric-duration').textContent = '0 min';
     document.getElementById('metric-fare-display').textContent = '₱0.00';
+    state.routeDistanceKm = 0;
+    state.routeDurationMins = 0;
     recalculateFare();
 
     if (!state.pointA) {
@@ -1557,19 +1716,6 @@ recalculateFare();
     updateTierPreview(e.target.value);
   });
 
-  document.getElementById('btn-save-settings')?.addEventListener('click', () => {
-    const selectedTier = parseInt(document.getElementById('cfg-fuel-tier')?.value, 10) || 1;
-    const newConfig = {
-      ...state.config,
-      currency: state.config.currency || '₱',
-      selectedTier: selectedTier
-    };
-
-    saveConfig(newConfig);
-    if (settingsModal) settingsModal.style.display = 'none';
-    showToast(`Tariff updated to Tier ${selectedTier}!`);
-  });
-
   // Mobile Bottom-Sheet Drawer Handle Toggle
   const drawerHandle = document.getElementById('drawer-handle');
   const sidebarPanel = document.getElementById('sidebar-panel');
@@ -1877,6 +2023,16 @@ if (prevBase) prevBase.textContent = `${cur}${tier.baseFare.toFixed(2)} (0–${t
 
 const prevRate = document.getElementById('prev-rate-km');
 if (prevRate) prevRate.textContent = `${cur}${tier.ratePerKm.toFixed(2)} / km`;
+
+const off = (v) => `${cur}${(v * 0.8).toFixed(2)}`;
+const discBase = document.getElementById('prev-base-disc');
+if (discBase) discBase.textContent = `${off(tier.baseFare)} (0–${tier.baseDistance.toFixed(0)} km)`;
+const discRate = document.getElementById('prev-rate-disc');
+if (discRate) discRate.textContent = `${off(tier.ratePerKm)} / km`;
+const discSave = document.getElementById('prev-save-disc');
+if (discSave) discSave.textContent = `${cur}${(tier.baseFare * 0.2).toFixed(2)}`;
+
+renderTierStrips(tier.id);
 }
 
 function populateSidebarFuelTiers() {
@@ -1964,3 +2120,12 @@ setupEventListeners();
 });
 
 
+
+// Keep the map controls resting just above the fare sheet
+(function trackSheetHeight() {
+  const sheet = document.getElementById('sidebar-panel');
+  if (!sheet || !('ResizeObserver' in window)) return;
+  new ResizeObserver(() => {
+    document.documentElement.style.setProperty('--sheet-h', `${sheet.offsetHeight}px`);
+  }).observe(sheet);
+})();

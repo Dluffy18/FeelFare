@@ -3,7 +3,7 @@
  * Provides offline caching, offline app shell, and tile caching.
  */
 
-const CACHE_NAME = 'calfair-cache-v3';
+const CACHE_NAME = 'feelfare-cache-v7';
 const TILE_CACHE_NAME = 'calfair-tiles-v1';
 
 const STATIC_ASSETS = [
@@ -11,10 +11,17 @@ const STATIC_ASSETS = [
   './index.html',
   './style.css',
   './app.js',
+  './tariff-config.js',
+  './share.js',
+  './track.html',
+  './track.js',
   './manifest.json',
   './assets/icon.svg',
   './assets/city-of-mati-logo.png',
-  'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap',
+  './assets/fonts/archivo-latin.woff2',
+  './assets/fonts/archivo-latin-ext.woff2',
+  './assets/fonts/public-sans-latin.woff2',
+  './assets/fonts/public-sans-latin-ext.woff2',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
   'https://unpkg.com/@phosphor-icons/web@2.1.1/src/index.js',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
@@ -96,7 +103,8 @@ self.addEventListener('fetch', (event) => {
   // 2. Dynamic APIs (OSRM routing, Photon/Nominatim search) - Network only with graceful offline catch
   if (url.hostname.includes('router.project-osrm.org') ||
       url.hostname.includes('photon.komoot.io') ||
-      url.hostname.includes('nominatim.openstreetmap.org')) {
+      url.hostname.includes('nominatim.openstreetmap.org') ||
+      url.hostname.endsWith('.supabase.co')) {
     event.respondWith(
       fetch(request).catch(() => {
         return new Response(JSON.stringify({
@@ -107,6 +115,20 @@ self.addEventListener('fetch', (event) => {
           headers: { 'Content-Type': 'application/json' }
         });
       })
+    );
+    return;
+  }
+
+  // 2b. Owner tariff config - network first so edits show on the next load
+  if (url.origin === self.location.origin && url.pathname.endsWith('/tariff-config.js')) {
+    event.respondWith(
+      fetch(request).then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const copy = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+        }
+        return networkResponse;
+      }).catch(() => caches.match(request, { ignoreSearch: true }))
     );
     return;
   }

@@ -4,38 +4,17 @@ A fast, mobile-friendly GIS web application built for calculating official motor
 
 ---
 
-## 📌 How to Change the Default Fuel Tier
+## 📌 How to Change the Default Fuel Tier (Owner Only)
 
-When fuel prices change in Mati, update the default tier in your code so the app opens with the new prevailing tariff automatically.
-
-### 1. In `app.js` (The Main Calculation Engine)
-
-Open [`app.js`](app.js) and look at **Lines 26–30**:
+Users can only **view** the fuel tiers. The default tier is set in one small file, [`tariff-config.js`](tariff-config.js):
 
 ```javascript
-const DEFAULT_CONFIG = {
-  currency: '₱',
-  selectedTier: 1,        // 👈 CHANGE THIS NUMBER (1, 2, 3, 4, 5, 6, 7, or 8)
-  avgSpeedKmh: 28
+window.CALFAIR_TARIFF = {
+  defaultTier: 1   // 👈 CHANGE THIS NUMBER (1 to 8)
 };
 ```
 
-*Example:* If gas prices rise to ₱65.00/L (which falls under **Tier 2**), simply change `selectedTier: 1` to `selectedTier: 2`.
-
----
-
-### 2. In `index.html` (The Initial HTML Badge)
-
-Open [`index.html`](index.html) and look at **Line 180**:
-
-```html
-<button type="button" id="trip-badge" class="trip-mode-badge" title="Click to change Fuel Tier" aria-label="Change Fuel Tariff Tier">
-  <span id="trip-badge-text">Tier 1</span>  <!-- 👈 Change to e.g. Tier 2 -->
-  <i class="ph-bold ph-caret-down"></i>
-</button>
-```
-
-This ensures the badge displays the new tier immediately while the page is loading.
+*Example:* If gas prices rise to ₱65.00/L (**Tier 2**), change `defaultTier: 1` to `defaultTier: 2`, then commit and push. The site updates in about a minute. If the number is missing or invalid, the app uses Tier 1.
 
 ---
 
@@ -87,5 +66,15 @@ Then open your browser to:
 * **`index.html`**: Main single-page application structure, interactive drawer, map container, and fare breakdown modals.
 * **`app.js`**: Leaflet map controls, OSRM routing engine, municipal tariff calculation rules, address autocomplete, and GPS geolocation.
 * **`style.css`**: Mobile-first responsive styling, glassmorphism card components, custom color palettes, and micro-animations.
-* **`server.ps1`**: Local HTTP server script for development and testing.
-"# FeelFare" 
+* **`tariff-config.js`**: Owner-only default fuel tier.
+* **`share.js`**: "Share my trip" (rider side). Sends the live location to Supabase.
+* **`track.html` / `track.js`**: Read-only page family members open from the shared link.
+* **`sw.js`, `manifest.json`**: Offline support and installable app.
+* **`server.ps1`** (local only, not published): Local HTTP server script for development and testing.
+
+---
+
+## 📍 Share My Trip
+
+Menu → **Share my trip** → **Start sharing** → **Send link**. Family open the link on any phone and see a live pin. Sharing stops when the rider taps **Stop sharing** or after 2 hours. Data is kept in a Supabase database that is only reachable through four functions (`start_share`, `update_share`, `stop_share`, `get_share`). Keep the app open while riding so the location keeps updating.
+ 
