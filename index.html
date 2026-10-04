@@ -37,7 +37,7 @@
     crossorigin="anonymous"></script>
 
   <!-- App Stylesheet with cache-busting -->
-  <link rel="stylesheet" href="style.css?v=61">
+  <link rel="stylesheet" href="style.css?v=65">
 </head>
 
 <body>
@@ -199,8 +199,8 @@
       </div>
 
       <div class="modal-body">
-        <p class="modal-desc">The City sets the fuel tier that applies today. The highlighted tier is the one in use.
-          Each box shows what <strong>this trip</strong> costs under that tier.</p>
+        <p class="modal-desc">Based on City of Mati City <strong>Ordinance 667, series of 2026.</strong>
+          Each box shows what <strong>This Trip</strong> costs under that tier.</p>
 
         <select id="cfg-fuel-tier" class="visually-hidden" tabindex="-1" aria-hidden="true">
           <option value="1">Tier 1</option>
@@ -228,6 +228,10 @@
           <span class="preview-metric">Succeeding <strong id="prev-rate-disc" class="preview-metric-val">₱1.60 / km</strong></span>
           <span class="preview-metric tier-discount-save">You save <strong id="prev-save-disc" class="preview-metric-val">₱3.00</strong> on base</span>
         </div>
+      </div>
+
+      <div class="modal-footer tariff-footer">
+        <p id="tariff-footer-text">The above rate shall be applicable for the first three (3) kilometers and an additional of <span id="foot-rate-words">two</span> pesos (Php <span id="foot-rate-num">2.00</span>) shall be charged to the succeeding kilometer.</p>
       </div>
     </div>
   </div>
@@ -372,7 +376,7 @@
 
   <!-- App JS with cache-busting -->
   <script src="tariff-config.js"></script>
-  <script src="app.js?v=35"></script>
+  <script src="app.js?v=36"></script>
   <script src="share.js?v=1"></script>
 
   <!-- Service Worker Registration (requires http/https) -->

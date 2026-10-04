@@ -2032,6 +2032,15 @@ if (discRate) discRate.textContent = `${off(tier.ratePerKm)} / km`;
 const discSave = document.getElementById('prev-save-disc');
 if (discSave) discSave.textContent = `${cur}${(tier.baseFare * 0.2).toFixed(2)}`;
 
+const footWords = document.getElementById('foot-rate-words');
+const footNum = document.getElementById('foot-rate-num');
+if (footWords || footNum) {
+  const NUM_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+  const whole = Number.isInteger(tier.ratePerKm);
+  if (footWords) footWords.textContent = whole ? (NUM_WORDS[tier.ratePerKm] || String(tier.ratePerKm)) : tier.ratePerKm.toFixed(2);
+  if (footNum) footNum.textContent = tier.ratePerKm.toFixed(2);
+}
+
 renderTierStrips(tier.id);
 }
 
