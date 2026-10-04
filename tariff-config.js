@@ -14,5 +14,5 @@
  *   Tier 8: P175.00 - P200.00 / L
  */
 window.CALFAIR_TARIFF = {
-  defaultTier: 4
+  defaultTier: 3
 };
