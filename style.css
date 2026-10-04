@@ -1287,24 +1287,24 @@ kbd {
   margin-top: 10px;
   padding: 10px 12px;
   border: 1px solid var(--seal-green);
-  background: color-mix(in srgb, var(--seal-green) 10%, var(--paper));
+  background: var(--seal-green);
   font-size: 13px;
-  color: var(--seal-green);
+  color: #fff;
 }
 
 .tier-discount-card .preview-metric-val {
-  color: var(--seal-green);
+  color: #fff;
 }
 
 .tier-discount-title {
   flex-basis: 100%;
   font-weight: 800;
-  color: var(--seal-green);
+  color: #fff;
 }
 
 .tier-discount-title small {
   font-weight: 600;
-  color: var(--seal-green);
+  color: #fff;
 }
 
 /* ---- Guide ---- */

@@ -66,6 +66,7 @@ Then open your browser to:
 * **`index.html`**: Main single-page application structure, interactive drawer, map container, and fare breakdown modals.
 * **`app.js`**: Leaflet map controls, OSRM routing engine, municipal tariff calculation rules, address autocomplete, and GPS geolocation.
 * **`style.css`**: Mobile-first responsive styling, glassmorphism card components, custom color palettes, and micro-animations.
+* **`offline-route.js` / `roads.json`**: Offline road routing. `roads.json` is the Mati road network (OpenStreetMap, built once); when the live routing service can't be reached, the app finds the route over these saved roads instead of drawing a straight line.
 * **`tariff-config.js`**: Owner-only default fuel tier.
 * **`share.js`**: "Share my trip" (rider side). Sends the live location to Supabase.
 * **`track.html` / `track.js`**: Read-only page family members open from the shared link.

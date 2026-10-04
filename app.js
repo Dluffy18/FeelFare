@@ -527,6 +527,7 @@ async function calculateRoute() {
     // Exact road distance in kilometers
     state.routeDistanceKm = selectedRoute.distance / 1000;
     state.isEstimate = false;
+    state.routeSource = 'online';
 
     // Calculate motorized pedicab travel time based on avg 25-30 km/h with 1 min buffer
     const speedKmMin = state.config.avgSpeedKmh / 60;
@@ -549,7 +550,37 @@ async function calculateRoute() {
     if (requestId !== currentRouteRequestId) return;
 
     console.error('Error fetching OSRM route:', err);
-    // Fallback: Haversine distance if network fails
+
+    // Fallback 1: route over the saved road network (works with no internet)
+    let offlineRoute = null;
+    try {
+      if (window.OfflineRouter) {
+        await window.OfflineRouter.load('roads.json');
+        offlineRoute = window.OfflineRouter.route(latA, lonA, latB, lonB);
+      }
+    } catch (offlineErr) {
+      console.warn('Offline road data unavailable:', offlineErr);
+    }
+    if (requestId !== currentRouteRequestId) return;
+
+    if (offlineRoute) {
+      state.routeDistanceKm = offlineRoute.distanceMeters / 1000;
+      state.isEstimate = true;
+      state.routeSource = 'offline';
+      const speedKmMin = state.config.avgSpeedKmh / 60;
+      state.routeDurationMins = Math.max(2, Math.round((state.routeDistanceKm / speedKmMin) + 1));
+
+      renderRoutePolyline(offlineRoute.geometry);
+
+      document.getElementById('metric-distance').textContent = `${state.routeDistanceKm.toFixed(2)} km (est.)`;
+      document.getElementById('metric-duration').textContent = `${state.routeDurationMins} min`;
+      recalculateFare();
+      enterCompactRouteMode();
+      return;
+    }
+
+    // Fallback 2: Haversine distance if there is no road data either
+    state.routeSource = 'straight';
     const directKm = calculateHaversineDistance(latA, lonA, latB, lonB) * 1.25; // 1.25 road curvature factor
     state.routeDistanceKm = directKm;
     state.isEstimate = true;
@@ -827,9 +858,11 @@ function updateNoticeState(tier = getActiveTier(), roundedFare = null) {
     if (caption) caption.textContent = state.hasDiscount ? 'Fare due · 20% off' : 'Fare due';
     if (foot) foot.textContent = `${tier.name} · ${when}`;
     if (status) {
-      status.textContent = state.isEstimate
-        ? 'Computed from an estimated distance (no road route available).'
-        : 'Computed from the road route and the city tariff.';
+      status.textContent = state.routeSource === 'offline'
+        ? 'Computed offline from saved roads. The distance may differ slightly from the live route.'
+        : state.isEstimate
+          ? 'Computed from an estimated distance (no road route available).'
+          : 'Computed from the road route and the city tariff.';
     }
     // Land the stamp only when the figure actually changes
     const key = `${roundedFare}|${tier.id}|${state.hasDiscount}`;
@@ -899,16 +932,10 @@ function renderKmRuler(dist, tier = getActiveTier()) {
   }
 }
 
-function fareForTier(tier, dist = state.routeDistanceKm || 0) {
-  const subtotal = tier.baseFare + Math.max(0, dist - tier.baseDistance) * tier.ratePerKm;
-  return Math.round(subtotal * (state.hasDiscount ? 0.8 : 1));
-}
-
 function renderTierStrips(selectedId) {
   const wrap = document.getElementById('tier-strips');
   if (!wrap) return;
   const cur = state.config.currency || '₱';
-  const hasRoute = state.routeDistanceKm > 0;
   wrap.innerHTML = '';
   FUEL_TIERS.forEach(tier => {
     const btn = document.createElement('div');
@@ -925,8 +952,8 @@ function renderTierStrips(selectedId) {
     range.textContent = `${cur}${tier.fuelMin.toFixed(2)}–${tier.fuelMax.toFixed(2)}/L`;
     const fare = document.createElement('span');
     fare.className = 'strip-fare';
-    fare.textContent = `${cur}${hasRoute ? fareForTier(tier) : tier.baseFare.toFixed(0)}`;
-    fare.title = hasRoute ? 'This trip under this tier' : 'Base fare, first 3 km';
+    fare.textContent = `${cur}${tier.baseFare.toFixed(0)}`;
+    fare.title = 'Base fare, first 3 km';
 
     btn.append(name, fare, range);
     wrap.appendChild(btn);
@@ -2138,3 +2165,8 @@ setupEventListeners();
     document.documentElement.style.setProperty('--sheet-h', `${sheet.offsetHeight}px`);
   }).observe(sheet);
 })();
+
+// Warm the saved road data while online so offline routing works later
+window.addEventListener('load', () => {
+  setTimeout(() => { window.OfflineRouter?.load('roads.json').catch(() => {}); }, 3000);
+});

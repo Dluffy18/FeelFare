@@ -37,7 +37,7 @@
     crossorigin="anonymous"></script>
 
   <!-- App Stylesheet with cache-busting -->
-  <link rel="stylesheet" href="style.css?v=65">
+  <link rel="stylesheet" href="style.css?v=67">
 </head>
 
 <body>
@@ -200,7 +200,7 @@
 
       <div class="modal-body">
         <p class="modal-desc">Based on City of Mati City <strong>Ordinance 667, series of 2026.</strong>
-          Each box shows what <strong>This Trip</strong> costs under that tier.</p>
+          Each box shows the <strong>base fare</strong> for the first 3 km.</p>
 
         <select id="cfg-fuel-tier" class="visually-hidden" tabindex="-1" aria-hidden="true">
           <option value="1">Tier 1</option>
@@ -376,7 +376,8 @@
 
   <!-- App JS with cache-busting -->
   <script src="tariff-config.js"></script>
-  <script src="app.js?v=36"></script>
+  <script src="offline-route.js?v=1"></script>
+  <script src="app.js?v=38"></script>
   <script src="share.js?v=1"></script>
 
   <!-- Service Worker Registration (requires http/https) -->
