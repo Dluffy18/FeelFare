@@ -1524,6 +1524,19 @@ kbd {
   .sidebar-panel {
     max-height: 47vh;
     max-height: 47dvh;
+    /* Phone bottom sheet: rounded top corners; overflow clips the seal band to the curve */
+    border-radius: 24px 24px 0 0;
+    overflow: hidden;
+    /* The seal band is drawn as inset shadows so it bends with the curve; ::before just holds its 10px of space */
+    box-shadow:
+      inset 0 6px 0 var(--seal-blue),
+      inset 0 10px 0 var(--seal-gold),
+      0 -4px 12px -4px rgba(18, 20, 18, .3);
+  }
+
+  .sidebar-panel::before {
+    height: 10px;
+    background: none;
   }
 
   .notice-masthead {
