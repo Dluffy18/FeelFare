@@ -2148,10 +2148,10 @@ setupEventListeners();
 
   // Network Status Feedback for PWA & Offline Usage
   window.addEventListener('offline', () => {
-    showToast('⚠️ Offline mode: local landmarks & estimated fares available.');
+    showToast('⚠️ Offline: using saved roads');
   });
   window.addEventListener('online', () => {
-    showToast('🌐 Back online! Live map & route optimization restored.');
+    showToast('🌐 Back online');
   });
 });
 

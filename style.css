@@ -1494,6 +1494,9 @@ kbd {
   left: 50%;
   top: calc(var(--safe-top) + 124px);
   max-width: calc(100vw - 32px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   padding: 10px 16px;
   background: var(--ink);
   color: var(--paper);
