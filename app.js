@@ -142,7 +142,7 @@ function resetToDefaultView(animate = true) {
     const sidebar = document.getElementById('sidebar-panel');
     const sidebarWidth = sidebar ? sidebar.offsetWidth + 30 : 470;
     map.fitBounds(DEFAULT_MAP_BOUNDS, {
-      paddingTopLeft: [sidebarWidth, 150],
+      paddingTopLeft: [sidebarWidth, 60],
       paddingBottomRight: [60, 60],
       maxZoom: 15,
       animate: animate
@@ -183,7 +183,7 @@ function centerMapOnVisiblePoint(coords, zoom = 15, animate = true) {
     const sidebarWidth = sidebar ? sidebar.offsetWidth + 30 : 470;
 
     map.fitBounds(bounds, {
-      paddingTopLeft: [sidebarWidth, 150],
+      paddingTopLeft: [sidebarWidth, 60],
       paddingBottomRight: [60, 60],
       maxZoom: zoom,
       animate: animate
@@ -598,6 +598,16 @@ async function calculateRoute() {
   }
 }
 
+// Bring the fare card to the top of the notice, past the discount switch, leaving a gap above it
+function scrollToFareCard() {
+  const content = document.querySelector('.sidebar-content');
+  const card = content?.querySelector('.fare-card');
+  if (content && card) {
+    const gap = 12; // just under the card's 16px top margin, so the switch box above is fully out of view
+    content.scrollTo({ top: Math.max(0, card.offsetTop - content.offsetTop - gap), behavior: 'smooth' });
+  }
+}
+
 function enterCompactRouteMode() {
   const panel = document.getElementById('sidebar-panel');
   if (!panel) return;
@@ -627,6 +637,8 @@ function enterCompactRouteMode() {
   const toEl = document.getElementById('compact-route-to');
   if (fromEl) fromEl.textContent = shortName(state.addressA, 'Pickup');
   if (toEl) toEl.textContent = shortName(state.addressB, 'Destination');
+
+  scrollToFareCard();
 
   // Re-frame the map with smooth recentering into newly enlarged viewport
   setTimeout(() => {
@@ -712,12 +724,10 @@ sheetHeight = window.innerHeight * 0.52;
       animate: true
     });
 } else {
-// Desktop: notice docked left, fields strip floating over the map top-left
+// Desktop: notice docked left with the fields strip inside it, so the map top is clear
 const sidebarWidth = panel ? panel.offsetWidth + 40 : 480;
-const topOverlay = document.getElementById('top-search-overlay');
-const topHeight = topOverlay ? topOverlay.offsetHeight + 16 : 120;
 map.fitBounds(bounds, {
-paddingTopLeft: [sidebarWidth, topHeight + 30],
+paddingTopLeft: [sidebarWidth, 60],
 paddingBottomRight: [60, 60],
 maxZoom: 16,
 animate: true
@@ -799,6 +809,8 @@ extraDistEl.style.display = 'none';
 }
 
 // Statutory Discount Line
+const discountTag = document.getElementById('fare-discount-tag');
+if (discountTag) discountTag.hidden = !state.hasDiscount;
 const discountEl = document.getElementById('line-discount');
 if (discountEl) {
 if (state.hasDiscount) {
@@ -854,15 +866,17 @@ function updateNoticeState(tier = getActiveTier(), roundedFare = null) {
   const foot = document.getElementById('stamp-foot');
 
   if (nextState === 'computed') {
-    const when = new Date().toLocaleString('en-PH', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
     if (caption) caption.textContent = state.hasDiscount ? 'Fare due · 20% off' : 'Fare due';
-    if (foot) foot.textContent = `${tier.name} · ${when}`;
+    if (foot) foot.textContent = `${tier.name} tariff`;
+    // The status line only appears when the distance is less certain than a live road route
     if (status) {
-      status.textContent = state.routeSource === 'offline'
+      const note = state.routeSource === 'offline'
         ? 'Computed offline from saved roads. The distance may differ slightly from the live route.'
         : state.isEstimate
           ? 'Computed from an estimated distance (no road route available).'
-          : 'Computed from the road route and the city tariff.';
+          : '';
+      status.textContent = note;
+      status.hidden = !note;
     }
     // Land the stamp only when the figure actually changes
     const key = `${roundedFare}|${tier.id}|${state.hasDiscount}`;
@@ -882,9 +896,8 @@ function updateNoticeState(tier = getActiveTier(), roundedFare = null) {
     if (caption) caption.textContent = 'Not yet computed';
     if (foot) foot.textContent = `${tier.name} tariff`;
     if (status) {
-      status.textContent = nextState === 'pickup'
-        ? (state.pointA ? 'Pickup set. Now choose a destination.' : 'Destination set. Now choose a pickup.')
-        : 'Set a pickup and a destination to compute the fare.';
+      status.textContent = '';
+      status.hidden = true;
     }
   }
 }
@@ -1316,8 +1329,8 @@ function setupEventListeners() {
 document.getElementById('toggle-discount').addEventListener('change', (e) => {
 state.hasDiscount = e.target.checked;
 recalculateFare();
-// Bring the updated fare stamp back into view
-document.querySelector('.sidebar-content')?.scrollTo({ top: 0, behavior: 'smooth' });
+// Bring the updated fare card into view
+scrollToFareCard();
 });
 
   // Swap locations button
@@ -2164,6 +2177,25 @@ setupEventListeners();
   new ResizeObserver(() => {
     document.documentElement.style.setProperty('--sheet-h', `${sheet.offsetHeight}px`);
   }).observe(sheet);
+})();
+
+// Desktop: dock the route fields inside the notice, under the masthead; phones keep them pinned to the top
+(function dockRouteFields() {
+  const overlay = document.getElementById('top-search-overlay');
+  const panel = document.getElementById('sidebar-panel');
+  const masthead = panel?.querySelector('.notice-masthead');
+  if (!overlay || !panel || !masthead || !window.matchMedia) return;
+  const mq = window.matchMedia('(min-width: 869px)');
+  const place = () => {
+    if (mq.matches) {
+      masthead.after(overlay);
+    } else {
+      panel.before(overlay);
+    }
+    if (typeof map !== 'undefined' && map) map.invalidateSize();
+  };
+  place();
+  mq.addEventListener?.('change', place);
 })();
 
 // Warm the saved road data while online so offline routing works later

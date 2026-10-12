@@ -3,7 +3,7 @@
  * Provides offline caching, offline app shell, and tile caching.
  */
 
-const CACHE_NAME = 'feelfare-cache-v10';
+const CACHE_NAME = 'feelfare-cache-v33';
 const TILE_CACHE_NAME = 'calfair-tiles-v1';
 
 const STATIC_ASSETS = [

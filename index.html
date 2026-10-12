@@ -37,7 +37,7 @@
     crossorigin="anonymous"></script>
 
   <!-- App Stylesheet with cache-busting -->
-  <link rel="stylesheet" href="style.css?v=68">
+  <link rel="stylesheet" href="style.css?v=87">
 </head>
 
 <body>
@@ -125,62 +125,57 @@
       </header>
 
       <div class="sidebar-content">
-        <!-- Stamp + tier -->
-        <section class="fare-summary-card" aria-live="polite">
-          <div class="fare-stamp" id="fare-stamp" aria-label="Computed fare">
-            <span class="stamp-caption" id="stamp-caption">Not yet computed</span>
-            <div class="fare-total-display">
-              <span class="total-currency" id="fare-currency">₱</span>
-              <span class="total-amount" id="total-fare-amount">0.00</span>
-            </div>
-            <span class="stamp-foot" id="stamp-foot">Official tariff</span>
-          </div>
-        </section>
-
-        <p class="notice-status" id="notice-status">Set a pickup and a destination to compute the fare.</p>
-
-        <!-- Distance · time -->
-        <p class="route-line" id="route-metrics">
-          <span class="route-line-computed"><strong id="metric-distance">0.00 km</strong> by road · about
-            <strong id="metric-duration">0 min</strong></span>
-          <span class="route-line-blank">Distance not measured yet.</span>
-          <strong id="metric-fare-display" class="metric-hidden">₱0.00</strong>
-        </p>
-
-        <!-- Km ruler -->
-        <section class="km-ruler-section" aria-label="Distance ruler">
-          <div class="km-ruler" id="km-ruler" aria-hidden="true"></div>
-        </section>
-
-        <!-- Breakdown -->
-        <section class="fare-breakdown" id="fare-breakdown" aria-label="Fare breakdown">
-          <div class="breakdown-line">
-            <span id="label-base-fare">Base fare, first 3.0 km</span>
-            <span id="val-base-fare">₱0.00</span>
-          </div>
-          <div class="breakdown-line" id="line-extra-dist" style="display:none;">
-            <span id="label-extra-dist">Succeeding km</span>
-            <span id="val-extra-dist">₱0.00</span>
-          </div>
-          <div class="breakdown-line discount-line" id="line-discount" style="display:none;">
-            <span>Senior / Student / PWD, 20% off</span>
-            <span id="val-discount">-₱0.00</span>
-          </div>
-          <div class="breakdown-line total-line" id="line-total" style="display:none;">
-            <span>Total, rounded</span>
-            <span id="val-total-raw">₱0.00</span>
-          </div>
-        </section>
-
         <!-- Discount tick box -->
         <label class="option-row" for="toggle-discount">
-          <input type="checkbox" id="toggle-discount" class="tick-input">
-          <span class="tick-box" aria-hidden="true"><i class="ph-bold ph-check"></i></span>
           <span class="option-info">
             <span class="option-title">Senior citizen, student or PWD</span>
-            <span class="option-hint">Applies the mandatory 20% discount. Show a valid ID to the driver.</span>
+            <span class="option-hint">Applies the mandatory 20% discount.</span>
           </span>
+          <input type="checkbox" role="switch" id="toggle-discount" class="tick-input">
+          <span class="tick-switch" aria-hidden="true"></span>
         </label>
+
+        <!-- Fare card: amount, breakdown -->
+        <div class="fare-card">
+          <section class="fare-card-main" aria-live="polite">
+            <div class="fare-total-display" id="fare-stamp" aria-label="Computed fare">
+              <span class="fare-figure">
+                <span class="total-currency" id="fare-currency">₱</span>
+                <span class="total-amount" id="total-fare-amount">0.00</span>
+              </span>
+              <span class="fare-discount-tag" id="fare-discount-tag" hidden>Discounted price</span>
+            </div>
+          </section>
+
+          <section class="fare-breakdown" id="fare-breakdown" aria-label="Fare breakdown">
+            <div class="breakdown-line">
+              <span id="label-base-fare">Base fare, first 3.0 km</span>
+              <span id="val-base-fare">₱0.00</span>
+            </div>
+            <div class="breakdown-line" id="line-extra-dist" style="display:none;">
+              <span id="label-extra-dist">Succeeding km</span>
+              <span id="val-extra-dist">₱0.00</span>
+            </div>
+            <div class="breakdown-line discount-line" id="line-discount" style="display:none;">
+              <span>Senior / Student / PWD, 20% off</span>
+              <span id="val-discount">-₱0.00</span>
+            </div>
+            <div class="breakdown-line total-line" id="line-total" style="display:none;">
+              <span>Total, rounded</span>
+              <span id="val-total-raw">₱0.00</span>
+            </div>
+          </section>
+
+          <!-- Shown only for offline or estimated distances -->
+          <p class="notice-status" id="notice-status" hidden></p>
+        </div>
+
+        <!-- Distance · time: not shown; app.js still writes these values and reads the fare for the compact bar -->
+        <p class="route-line" id="route-metrics" hidden>
+          <strong id="metric-distance">0.00 km</strong>
+          <strong id="metric-duration">0 min</strong>
+          <strong id="metric-fare-display" class="metric-hidden">₱0.00</strong>
+        </p>
 
         <p class="notice-foot" id="notice-foot">Issued by the City of Mati. Fares follow the city's fuel-tier
           tariff matrix; tier in force: <strong id="notice-foot-tier">Tier 1 (₱50.00–59.99/L)</strong>.</p>
@@ -389,7 +384,7 @@
   <!-- App JS with cache-busting -->
   <script src="tariff-config.js"></script>
   <script src="offline-route.js?v=1"></script>
-  <script src="app.js?v=39"></script>
+  <script src="app.js?v=47"></script>
   <script src="share.js?v=1"></script>
 
   <!-- Service Worker Registration (requires http/https) -->

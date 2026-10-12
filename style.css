@@ -665,110 +665,110 @@ kbd {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 18px 20px 20px;
+  --pad-t: 18px;
+  --pad-x: 20px;
+  padding: var(--pad-t) var(--pad-x) 20px;
 }
 
-/* ---- Stamp + tier ---- */
-.fare-summary-card {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
+/* ---- Fare card: blue, rounded; everything inside reads these and inverts to white ---- */
+.fare-card {
+  --ink: #FFFFFF;
+  --ink-2: #E3E8FB;
+  --ink-3: #C2CCF5;
+  --rule: rgba(255, 255, 255, .4);
+  --green: #A6F0BF;
+  --gold-ink: var(--seal-gold);
+  margin-top: 16px;
+  padding: 16px 18px 14px;
+  border-radius: 16px;
+  background: #01188E;
+  color: var(--ink);
 }
 
-.fare-stamp {
-  --stamp: var(--violet);
+.fare-card-main {
+  text-align: center;
+}
+
+/* The amount, as a small rubber stamp in white ink: double frame, set square */
+.fare-total-display {
   position: relative;
-  display: inline-flex;
-  flex-direction: column;
+  /* Figure in the middle column; the side columns stay equal until the tag needs the room */
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  padding: 12px 24px 13px;
-  border: 3px solid var(--stamp);
-  color: var(--stamp);
-  transform: rotate(-2.5deg);
-  transform-origin: 40% 60%;
+  column-gap: 6px;
+  margin: 2px 0 4px;
+  padding: 7px 10px 6px;
+  border: 2px solid currentColor;
+  font-family: var(--font-fig);
+  font-stretch: 78%;
+  font-weight: 850;
+  font-size: 34px;
+  line-height: 1;
+  letter-spacing: -.01em;
+  font-variant-numeric: tabular-nums;
 }
 
-.fare-stamp::before {
+.fare-total-display::before {
   content: "";
   position: absolute;
-  inset: 3px;
-  border: 1px solid var(--stamp);
+  inset: 2px;
+  border: 1px solid currentColor;
   pointer-events: none;
 }
 
-.stamp-caption,
-.stamp-foot {
-  font-family: var(--font-fig);
+.fare-figure {
+  grid-column: 2;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+/* "Discounted price", at the stamp's right edge while the discount switch is on */
+.fare-discount-tag {
+  grid-column: 3;
+  justify-self: end;
+  width: min-content;
   font-stretch: 80%;
-  font-size: 13px;
+  font-size: 10px;
   font-weight: 800;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-  line-height: 1.2;
-  white-space: nowrap;
-}
-
-.stamp-foot {
-  font-weight: 600;
+  line-height: 1.15;
   letter-spacing: .06em;
-  font-variant-numeric: tabular-nums;
+  text-align: right;
+  text-transform: uppercase;
+  color: var(--green);
 }
 
-.fare-total-display {
-  display: flex;
-  align-items: flex-start;
-  gap: 2px;
-  font-family: var(--font-fig);
-  font-stretch: 72%;
-  font-weight: 850;
-  line-height: .95;
-  font-variant-numeric: tabular-nums;
-  margin: 2px 0 3px;
-}
-
-.total-currency {
-  font-size: 38px;
-  margin-top: 6px;
-}
-
-.total-amount {
-  font-size: 80px;
-  letter-spacing: -.02em;
-}
-
-/* Blank / pickup-only notice: stamp not yet inked */
-.sidebar-panel:not([data-state="computed"]) .fare-stamp {
-  --stamp: var(--ink-3);
+/* Blank / pickup-only: stamp not yet inked */
+.sidebar-panel:not([data-state="computed"]) .fare-total-display {
+  color: var(--ink-3);
   border-style: dashed;
-  border-width: 2px;
-  transform: none;
+  border-width: 1.5px;
 }
 
-.sidebar-panel:not([data-state="computed"]) .fare-stamp::before {
+.sidebar-panel:not([data-state="computed"]) .fare-total-display::before {
   display: none;
 }
 
-.fare-stamp.is-stamping {
-  animation: stamp-land .42s var(--ease-out) both;
+/* app.js re-adds this class whenever the figure changes */
+.fare-total-display.is-stamping {
+  animation: stamp-land .38s var(--ease-out) both;
 }
 
 @keyframes stamp-land {
   0% {
     opacity: 0;
-    transform: rotate(-9deg) scale(1.55);
-    filter: blur(3px);
+    transform: scale(1.4);
   }
 
   55% {
     opacity: 1;
-    transform: rotate(-2.5deg) scale(.97);
-    filter: blur(0);
+    transform: scale(.97);
   }
 
   100% {
     opacity: 1;
-    transform: rotate(-2.5deg) scale(1);
+    transform: scale(1);
   }
 }
 
@@ -828,10 +828,9 @@ kbd {
 }
 
 .notice-status {
-  margin: 16px 0 0;
-  padding: 8px 0;
-  border-top: 1px solid var(--rule);
-  border-bottom: 1px solid var(--rule);
+  margin: 8px 0 0;
+  padding: 10px 0 0;
+  border-top: 1px dotted var(--rule);
   font-size: 13px;
   font-weight: 600;
   color: var(--ink-2);
@@ -948,9 +947,9 @@ kbd {
 
 /* ---- Breakdown ---- */
 .fare-breakdown {
-  margin-top: 6px;
-  padding-top: 10px;
-  border-top: 1px solid var(--ink);
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px dotted var(--rule);
 }
 
 .breakdown-line {
@@ -963,28 +962,25 @@ kbd {
 }
 
 .breakdown-line>span:first-child {
-  display: flex;
   flex: 1;
   min-width: 0;
-  align-items: baseline;
   color: var(--ink-2);
 }
 
-.breakdown-line>span:first-child::after {
-  content: "";
-  flex: 1;
-  min-width: 12px;
-  margin: 0 6px;
-  border-bottom: 1px dotted var(--ink-3);
-}
-
 .breakdown-line>span:last-child {
+  flex: none;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
+.discount-line>span:first-child {
+  color: var(--ink);
+  font-weight: 700;
+}
+
 .discount-line>span:last-child {
   color: var(--green);
+  font-weight: 800;
 }
 
 .total-line {
@@ -1017,15 +1013,15 @@ kbd {
   color: var(--ink-3);
 }
 
-/* ---- Discount tick box ---- */
+/* ---- Discount switch ---- */
 .option-row {
   position: relative;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
-  margin-top: 16px;
   padding: 14px;
   border: 1px solid var(--ink);
+  border-radius: 16px;
   cursor: pointer;
   transition: background-color .15s;
 }
@@ -1040,30 +1036,46 @@ kbd {
   pointer-events: none;
 }
 
-.tick-box {
+/* Switch: grey track with a white knob; slides right and turns blue when on */
+.tick-switch {
+  position: relative;
   flex: none;
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  border: 2px solid var(--ink);
-  background: var(--paper);
-  font-size: 15px;
-  color: transparent;
+  width: 46px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--rule);
+  transition: background-color .18s;
 }
 
-.tick-input:checked+.tick-box {
+.tick-switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #FFFFFF;
+  box-shadow: 0 1px 3px rgba(18, 20, 18, .35);
+  transition: transform .18s var(--ease-out);
+}
+
+.tick-input:checked+.tick-switch {
   background: var(--seal-blue);
-  border-color: var(--seal-blue);
-  color: var(--paper);
 }
 
-.tick-input:focus-visible+.tick-box {
+.tick-input:checked+.tick-switch::after {
+  transform: translateX(20px);
+}
+
+.tick-input:focus-visible+.tick-switch {
   outline: 2px solid var(--seal-blue);
   outline-offset: 2px;
 }
 
 .option-info {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -1087,6 +1099,10 @@ kbd {
 .sidebar-panel.is-collapsed .fare-breakdown,
 .sidebar-panel.is-collapsed .option-row {
   display: none;
+}
+
+.sidebar-panel.is-collapsed .fare-card {
+  margin-top: 0;
 }
 
 /* ==========================================================================
@@ -1606,23 +1622,11 @@ kbd {
   }
 
   .sidebar-content {
-    padding-top: 14px;
+    --pad-t: 14px;
   }
 }
 
 @media (max-width: 440px) {
-  .total-amount {
-    font-size: 66px;
-  }
-
-  .total-currency {
-    font-size: 33px;
-  }
-
-  .fare-summary-card {
-    gap: 10px;
-  }
-
   .badge-range {
     display: none;
   }
@@ -1645,7 +1649,7 @@ kbd {
 }
 
 /* ==========================================================================
-   Desktop: notice docked as a left column, fields float over the map
+   Desktop: notice docked as a left column, fields sit under its masthead
    ========================================================================== */
 @media (min-width: 869px) {
   .sidebar-panel {
@@ -1677,26 +1681,21 @@ kbd {
   }
 
   .sidebar-content {
-    padding: 24px 28px 28px;
+    --pad-t: 24px;
+    --pad-x: 28px;
+    padding-bottom: 28px;
   }
 
-  .total-amount {
-    font-size: 96px;
-  }
-
-  .total-currency {
-    font-size: 44px;
-    margin-top: 8px;
-  }
-
+  /* Docked inside the notice, under the masthead (app.js moves the node here) */
   .top-search-overlay {
-    top: 16px;
-    left: calc(var(--sheet-w) + 16px);
-    right: auto;
-    width: min(560px, calc(100vw - var(--sheet-w) - 32px));
-    border: 1px solid var(--ink);
-    box-shadow: var(--lift);
+    position: relative;
+    flex: none;
     padding-top: 0;
+  }
+
+  /* Not docked yet: keep it from flashing over the map */
+  .app-layout>.top-search-overlay {
+    display: none;
   }
 
   .toast-notification {
