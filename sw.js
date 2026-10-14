@@ -3,7 +3,7 @@
  * Provides offline caching, offline app shell, and tile caching.
  */
 
-const CACHE_NAME = 'feelfare-cache-v33';
+const CACHE_NAME = 'feelfare-cache-v37';
 const TILE_CACHE_NAME = 'calfair-tiles-v1';
 
 const STATIC_ASSETS = [
@@ -12,11 +12,8 @@ const STATIC_ASSETS = [
   './style.css',
   './app.js',
   './tariff-config.js',
-  './share.js',
   './offline-route.js',
   './roads.json',
-  './track.html',
-  './track.js',
   './manifest.json',
   './assets/icon.svg',
   './assets/city-of-mati-logo.png',
@@ -105,8 +102,7 @@ self.addEventListener('fetch', (event) => {
   // 2. Dynamic APIs (OSRM routing, Photon/Nominatim search) - Network only with graceful offline catch
   if (url.hostname.includes('router.project-osrm.org') ||
       url.hostname.includes('photon.komoot.io') ||
-      url.hostname.includes('nominatim.openstreetmap.org') ||
-      url.hostname.endsWith('.supabase.co')) {
+      url.hostname.includes('nominatim.openstreetmap.org')) {
     event.respondWith(
       fetch(request).catch(() => {
         return new Response(JSON.stringify({

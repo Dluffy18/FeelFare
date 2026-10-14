@@ -68,14 +68,7 @@ Then open your browser to:
 * **`style.css`**: Mobile-first responsive styling, glassmorphism card components, custom color palettes, and micro-animations.
 * **`offline-route.js` / `roads.json`**: Offline road routing. `roads.json` is the Mati road network (OpenStreetMap, built once); when the live routing service can't be reached, the app finds the route over these saved roads instead of drawing a straight line.
 * **`tariff-config.js`**: Owner-only default fuel tier.
-* **`share.js`**: "Share my trip" (rider side). Sends the live location to Supabase.
-* **`track.html` / `track.js`**: Read-only page family members open from the shared link.
 * **`sw.js`, `manifest.json`**: Offline support and installable app.
 * **`server.ps1`** (local only, not published): Local HTTP server script for development and testing.
 
----
-
-## 📍 Share My Trip
-
-Menu → **Share my trip** → **Start sharing** → **Send link**. Family open the link on any phone and see a live pin. Sharing stops when the rider taps **Stop sharing** or after 2 hours. Data is kept in a Supabase database that is only reachable through four functions (`start_share`, `update_share`, `stop_share`, `get_share`). Keep the app open while riding so the location keeps updating.
  

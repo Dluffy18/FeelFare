@@ -15,7 +15,7 @@
 
   <!-- Content Security Policy (Defense-in-depth XSS & Injection Prevention) -->
   <meta http-equiv="Content-Security-Policy"
-    content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; font-src 'self' https://unpkg.com data:; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.tile.openstreetmap.fr https://server.arcgisonline.com https://unpkg.com; connect-src 'self' https://unpkg.com https://router.project-osrm.org http://router.project-osrm.org https://photon.komoot.io https://nominatim.openstreetmap.org https://odhstttenhbsyyonrukn.supabase.co; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self';">
+    content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; font-src 'self' https://unpkg.com data:; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.tile.openstreetmap.fr https://server.arcgisonline.com https://unpkg.com; connect-src 'self' https://unpkg.com https://router.project-osrm.org http://router.project-osrm.org https://photon.komoot.io https://nominatim.openstreetmap.org; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self';">
 
   <!-- Web App Manifest & App Icons (PWA & Offline Capability) -->
   <link rel="manifest" href="manifest.json">
@@ -231,41 +231,6 @@
     </div>
   </div>
 
-  <!-- Share my trip -->
-  <div class="modal-overlay" id="share-modal" style="display:none;">
-    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="share-title">
-      <div class="modal-header">
-        <h2 id="share-title">Share my trip</h2>
-        <button id="btn-close-share" class="icon-btn" type="button" title="Close" aria-label="Close share trip">
-          <i class="ph-bold ph-x"></i>
-        </button>
-      </div>
-      <div class="modal-body">
-        <div id="share-off">
-          <p class="modal-desc">Let family follow your ride live on a map. They open a link; no app or login needed.
-            Sharing stops when you tap <strong>Stop sharing</strong> or after 2 hours.</p>
-          <p class="modal-desc">Keep FeelFare open while you ride so your location keeps updating.</p>
-          <div class="modal-actions">
-            <button id="btn-share-start" type="button" class="btn-primary">Start sharing</button>
-          </div>
-        </div>
-        <div id="share-on" style="display:none;">
-          <p class="modal-desc share-live"><span class="share-live-dot" aria-hidden="true"></span>
-            Your location is being shared. Send this link to family:</p>
-          <input id="share-link" class="share-link" type="text" readonly aria-label="Trip link">
-          <div class="modal-actions">
-            <button id="btn-share-stop" type="button" class="btn-secondary">Stop sharing</button>
-            <button id="btn-share-send" type="button" class="btn-primary">Send link</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <button id="share-pill" class="share-pill" type="button" style="display:none;" aria-label="Sharing your location. Tap to manage.">
-    <span class="share-live-dot" aria-hidden="true"></span> Sharing live
-  </button>
-
   <!-- Guide -->
   <div class="modal-overlay" id="guide-modal" style="display:none;">
     <div class="modal-card guide-modal-card" role="dialog" aria-modal="true" aria-labelledby="guide-title">
@@ -367,10 +332,6 @@
         <span class="nav-menu-label">Tariff settings</span>
         <i class="ph-bold ph-arrow-right" aria-hidden="true"></i>
       </button>
-      <button id="btn-sidebar-share" class="nav-menu-item" type="button">
-        <span class="nav-menu-label">Share my trip</span>
-        <i class="ph-bold ph-arrow-right" aria-hidden="true"></i>
-      </button>
     </nav>
   </aside>
 
@@ -384,8 +345,7 @@
   <!-- App JS with cache-busting -->
   <script src="tariff-config.js"></script>
   <script src="offline-route.js?v=1"></script>
-  <script src="app.js?v=47"></script>
-  <script src="share.js?v=1"></script>
+  <script src="app.js?v=49"></script>
 
   <!-- Service Worker Registration (requires http/https) -->
   <script>

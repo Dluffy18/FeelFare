@@ -37,7 +37,6 @@ const DEFAULT_CONFIG = {
 
 const state = {
   config: { ...DEFAULT_CONFIG },
-  tripType: 'regular',    // Official CTFO tariff: regular trips
   hasDiscount: false,
   
   // Coordinates & Waypoints: [lat, lng]
@@ -51,10 +50,7 @@ const state = {
   routeDurationMins: 0,
   routePolyline: null,
   markerA: null,
-  markerB: null,
-  
-  // Map selection mode
-  clickMode: null // 'pickup' | 'dropoff' | null
+  markerB: null
 };
 
 // ============================================================================
@@ -70,25 +66,6 @@ function loadConfig() {
   } catch (err) {
     console.warn('Could not access localStorage:', err);
   }
-}
-
-function saveConfig(newConfig) {
-state.config = { ...newConfig };
-// Active in-memory update for current session (reverts to Tier 1 on refresh/exit)
-updateUIConfigDisplays();
-recalculateFare();
-}
-
-function resetConfigToDefaults() {
-state.config = { ...DEFAULT_CONFIG };
-try {
-localStorage.removeItem('calfair_tariff_config');
-} catch (err) {
-console.warn('Error clearing config:', err);
-}
-updateUIConfigDisplays();
-populateSettingsForm();
-recalculateFare();
 }
 
 // ============================================================================
@@ -312,15 +289,13 @@ async function handleMapClick(e) {
 const { lat, lng } = e.latlng;
 const coords = [lat, lng];
 
-  if (state.clickMode === 'pickup' || !state.pointA) {
+  if (!state.pointA) {
     showToast('Pickup location updated!');
     const addr = await reverseGeocode(lat, lng);
     setPointA(coords, addr);
     if (!state.pointB) {
       centerMapOnVisiblePoint(coords, 15);
     }
-    state.clickMode = null;
-    document.getElementById('btn-click-mode-pickup')?.classList.remove('active');
   } else {
     showToast('Destination updated!');
     const addr = await reverseGeocode(lat, lng);
@@ -431,6 +406,18 @@ function inspectRouteRoads(route) {
   return { diversionDist, macapagalDist, rizalDist, limatocDist, capitolDist };
 }
 
+// Free map services can stall for a minute or more; give up after `ms` so the
+// caller's existing fallback (offline router, local places, coordinates) runs instead
+async function fetchWithTimeout(url, ms) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 let currentRouteRequestId = 0;
 
 async function calculateRoute() {
@@ -452,7 +439,7 @@ async function calculateRoute() {
   try {
     // 1. Fetch routes from OSRM with alternatives=true and steps=true
     const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${lonA},${latA};${lonB},${latB}?overview=full&geometries=geojson&alternatives=true&steps=true`;
-    const res = await fetch(osrmUrl);
+    const res = await fetchWithTimeout(osrmUrl, 6000);
     if (!res.ok) throw new Error('OSRM network response failed');
     const data = await res.json();
 
@@ -496,7 +483,7 @@ async function calculateRoute() {
         try {
           const [wpLat, wpLon] = MACAPAGAL_SPINE_WAYPOINT;
           const viaUrl = `https://router.project-osrm.org/route/v1/driving/${lonA},${latA};${wpLon},${wpLat};${lonB},${latB}?overview=full&geometries=geojson&steps=true`;
-          const viaRes = await fetch(viaUrl);
+          const viaRes = await fetchWithTimeout(viaUrl, 4000);
           if (viaRes.ok) {
             const viaData = await viaRes.json();
             if (viaData.routes && viaData.routes.length > 0) {
@@ -779,12 +766,6 @@ discountAmount = subtotal * 0.20;
 const totalFare = Math.max(0, subtotal - discountAmount);
 
 // Update Line Items
-const tripBadgeText = document.getElementById('trip-badge-text') || document.getElementById('trip-badge');
-if (tripBadgeText) tripBadgeText.textContent = tier.name;
-
-const tripBadgeRange = document.getElementById('trip-badge-range');
-if (tripBadgeRange) tripBadgeRange.textContent = `${cur}${tier.fuelMin.toFixed(2)}–${tier.fuelMax.toFixed(2)}/L`;
-
 const labelBaseFare = document.getElementById('label-base-fare');
 if (labelBaseFare) labelBaseFare.textContent = `Base fare, first ${tier.baseDistance.toFixed(1)} km`;
 const valBaseFare = document.getElementById('val-base-fare');
@@ -844,11 +825,10 @@ const footTier = document.getElementById('notice-foot-tier');
 if (footTier) footTier.textContent = `${tier.name} (${cur}${tier.fuelMin.toFixed(2)}–${tier.fuelMax.toFixed(2)}/L)`;
 
 updateNoticeState(tier, roundedFare);
-renderKmRuler(dist, tier);
 }
 
 // ============================================================================
-// 6b. Notice states, rubber stamp & km ruler
+// 6b. Notice states & rubber stamp
 // ============================================================================
 
 let lastStampedKey = '';
@@ -862,12 +842,8 @@ function updateNoticeState(tier = getActiveTier(), roundedFare = null) {
   panel.dataset.estimate = String(!!state.isEstimate);
 
   const status = document.getElementById('notice-status');
-  const caption = document.getElementById('stamp-caption');
-  const foot = document.getElementById('stamp-foot');
 
   if (nextState === 'computed') {
-    if (caption) caption.textContent = state.hasDiscount ? 'Fare due · 20% off' : 'Fare due';
-    if (foot) foot.textContent = `${tier.name} tariff`;
     // The status line only appears when the distance is less certain than a live road route
     if (status) {
       const note = state.routeSource === 'offline'
@@ -893,54 +869,9 @@ function updateNoticeState(tier = getActiveTier(), roundedFare = null) {
     if (amount) amount.textContent = '—';
     const metricFare = document.getElementById('metric-fare-display');
     if (metricFare) metricFare.textContent = '—';
-    if (caption) caption.textContent = 'Not yet computed';
-    if (foot) foot.textContent = `${tier.name} tariff`;
     if (status) {
       status.textContent = '';
       status.hidden = true;
-    }
-  }
-}
-
-function renderKmRuler(dist, tier = getActiveTier()) {
-  const ruler = document.getElementById('km-ruler');
-  if (!ruler) return;
-  const base = tier.baseDistance;
-  const scale = Math.max(dist, base) * (dist > base ? 1 : 1.25);
-  const pct = (km) => `${Math.min(100, (km / scale) * 100).toFixed(2)}%`;
-  const step = scale > 40 ? 10 : scale > 16 ? 5 : 1;
-
-  let ticks = '';
-  for (let km = step; km < scale; km += step) {
-    ticks += `<span class="ruler-tick" style="left:${pct(km)}"></span>`;
-    // Number the ticks, leaving room for the base and end labels
-    const nearBase = Math.abs(km - base) / scale < 0.12;
-    const nearEnd = km / scale > 0.72;
-    if (dist > 0 && !nearBase && !nearEnd) {
-      ticks += `<span class="ruler-label at-km" style="left:${pct(km)}">${km}</span>`;
-    }
-  }
-
-  const endLabel = dist > 0 ? `${dist.toFixed(2)} km trip` : `Base fare covers the first ${base.toFixed(0)} km`;
-  ruler.innerHTML =
-    `<div class="ruler-bar"><span class="ruler-base" style="width:${pct(base)}"></span>` +
-    `<span class="ruler-trip" style="width:${pct(dist)}"></span></div>${ticks}` +
-    `<span class="ruler-label at-start">0</span>` +
-    `<span class="ruler-label at-base" style="left:${pct(base)}">${base.toFixed(0)} km base</span>` +
-    `<span class="ruler-label at-end">${endLabel}</span>`;
-
-  // Keep the base label clear of the end label on short scales
-  const baseLabel = ruler.querySelector('.at-base');
-  if (baseLabel && dist <= 0) baseLabel.style.display = 'none';
-
-  // Merge into one line when the end label would overlap the base label
-  const endEl = ruler.querySelector('.at-end');
-  if (baseLabel && endEl && dist > 0 && baseLabel.offsetWidth) {
-    const b = baseLabel.getBoundingClientRect();
-    const e = endEl.getBoundingClientRect();
-    if (b.right + 6 > e.left) {
-      baseLabel.style.display = 'none';
-      endEl.textContent = `${base.toFixed(0)} km base · ${endLabel}`;
     }
   }
 }
@@ -1057,12 +988,11 @@ function hasWordBoundaryMatch(text, word) {
   return rx.test(text);
 }
 
-async function searchAddresses(query) {
+// Instant search of the curated Mati City directory with multi-tier relevance scoring (no network)
+function searchLocalPlaces(query) {
   if (!query || query.trim().length < 2) return [];
   const cleanQ = query.trim().toLowerCase();
   const queryWords = cleanQ.split(/\s+/).filter(w => w.length > 1);
-
-  // 1. Instant local search from curated Mati City directory with multi-tier relevance scoring
   const scoredLocalCandidates = [];
 
   MATI_LOCAL_PLACES.forEach(place => {
@@ -1149,13 +1079,31 @@ async function searchAddresses(query) {
 
   // Sort local matches strictly by relevance score descending
   scoredLocalCandidates.sort((a, b) => b.score - a.score);
-  const localMatches = scoredLocalCandidates;
+  return scoredLocalCandidates;
+}
+
+// A local match this strong (exact or prefix name/tag, or every typed word) is taken on Enter without waiting for the network
+const STRONG_LOCAL_SCORE = 400;
+
+// Recent search results for this session, so repeating a query is instant
+const searchCache = new Map();
+const SEARCH_CACHE_SIZE = 30;
+
+async function searchAddresses(query) {
+  if (!query || query.trim().length < 2) return [];
+  const cleanQ = query.trim().toLowerCase();
+  if (searchCache.has(cleanQ)) return searchCache.get(cleanQ);
+  const queryWords = cleanQ.split(/\s+/).filter(w => w.length > 1);
+
+  // 1. Instant local search
+  const localMatches = searchLocalPlaces(query);
+  let networkFailed = false;
 
   // 2. Query Photon API strictly bounded to City of Mati (bbox: minLon,minLat,maxLon,maxLat)
   let apiMatches = [];
   try {
     const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lat=${MATI_CENTER[0]}&lon=${MATI_CENTER[1]}&bbox=${MATI_BOUNDS.minLng},${MATI_BOUNDS.minLat},${MATI_BOUNDS.maxLng},${MATI_BOUNDS.maxLat}&limit=12`;
-    const res = await fetch(photonUrl);
+    const res = await fetchWithTimeout(photonUrl, 4000);
     if (res.ok) {
       const data = await res.json();
       if (data && data.features) {
@@ -1246,6 +1194,7 @@ async function searchAddresses(query) {
       }
     }
   } catch (err) {
+    networkFailed = true;
     console.warn('Photon bounded search error, falling back to Nominatim:', err);
   }
 
@@ -1253,7 +1202,7 @@ async function searchAddresses(query) {
   if (apiMatches.length === 0 && localMatches.length === 0) {
     try {
       const nomUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&viewbox=${MATI_BOUNDS.minLng},${MATI_BOUNDS.maxLat},${MATI_BOUNDS.maxLng},${MATI_BOUNDS.minLat}&bounded=1&countrycodes=ph&limit=8`;
-      const res = await fetch(nomUrl);
+      const res = await fetchWithTimeout(nomUrl, 4000);
       if (res.ok) {
         const data = await res.json();
         apiMatches = (data || [])
@@ -1274,6 +1223,7 @@ async function searchAddresses(query) {
           }));
       }
     } catch (e2) {
+      networkFailed = true;
       console.warn('Nominatim bounded fallback failed:', e2);
     }
   }
@@ -1296,13 +1246,19 @@ async function searchAddresses(query) {
     if (!isDup) unique.push(item);
   });
 
-  return unique.slice(0, 6);
+  const results = unique.slice(0, 6);
+  // Skip caching when a service failed, so a later retry can still reach it
+  if (!networkFailed) {
+    searchCache.set(cleanQ, results);
+    if (searchCache.size > SEARCH_CACHE_SIZE) searchCache.delete(searchCache.keys().next().value);
+  }
+  return results;
 }
 
 async function reverseGeocode(lat, lng) {
 try {
 const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
-const res = await fetch(url);
+const res = await fetchWithTimeout(url, 4000);
 if (!res.ok) throw new Error('Reverse geocode failed');
 const data = await res.json();
 const addr = data.address;
@@ -1545,9 +1501,7 @@ scrollToFareCard();
     }
 
     const locBtn = document.getElementById('btn-current-location');
-    const legacyBtn = document.getElementById('btn-click-mode-pickup');
     if (locBtn) locBtn.classList.add('is-locating');
-    if (legacyBtn) legacyBtn.classList.add('active');
 
     showToast('Locating your position via GPS...');
 
@@ -1580,12 +1534,10 @@ scrollToFareCard();
       }
     } finally {
       if (locBtn) locBtn.classList.remove('is-locating');
-      if (legacyBtn) legacyBtn.classList.remove('active');
     }
   };
 
   document.getElementById('btn-current-location')?.addEventListener('click', triggerGeolocate);
-  document.getElementById('btn-click-mode-pickup')?.addEventListener('click', triggerGeolocate);
 
   document.getElementById('btn-recenter')?.addEventListener('click', () => {
     if (state.routePolyline) {
@@ -1607,24 +1559,12 @@ scrollToFareCard();
     if (settingsModal) settingsModal.style.display = 'none';
   };
 
-  const openSettingsModal = (focusTier = false) => {
+  const openSettingsModal = () => {
     populateSettingsForm();
-    if (settingsModal) {
-      settingsModal.style.display = 'flex';
-      if (focusTier) {
-        const tierSelect = document.getElementById('cfg-fuel-tier');
-        if (tierSelect) {
-          setTimeout(() => tierSelect.focus(), 60);
-        }
-      }
-    }
+    if (settingsModal) settingsModal.style.display = 'flex';
   };
 
-  document.getElementById('btn-open-settings')?.addEventListener('click', () => openSettingsModal(false));
-  document.getElementById('trip-badge')?.addEventListener('click', () => openSettingsModal(true));
-
   document.getElementById('btn-close-settings')?.addEventListener('click', closeSettingsModal);
-  document.getElementById('btn-cancel-settings')?.addEventListener('click', closeSettingsModal);
 
   // Close on backdrop overlay click
   settingsModal?.addEventListener('click', (e) => {
@@ -1661,7 +1601,6 @@ scrollToFareCard();
     }
   };
 
-  document.getElementById('btn-open-guide')?.addEventListener('click', openGuideModal);
   document.getElementById('btn-close-guide')?.addEventListener('click', () => closeGuideModal(false));
   document.getElementById('btn-got-it-guide')?.addEventListener('click', () => closeGuideModal(true));
 
@@ -1704,7 +1643,6 @@ scrollToFareCard();
       navBackdrop.classList.add('is-open');
       navBackdrop.setAttribute('aria-hidden', 'false');
     }
-    syncSidebarFuelTier();
   };
 
   const closeNavSidebar = () => {
@@ -1748,7 +1686,7 @@ scrollToFareCard();
 
   document.getElementById('btn-sidebar-settings')?.addEventListener('click', () => {
     closeNavSidebar();
-    openSettingsModal(false);
+    openSettingsModal();
   });
 
   // Fuel Tier Dropdown Change Listener
@@ -1824,6 +1762,18 @@ function setupAutocomplete(inputId, resultsId, onSelect) {
   let isCommitting = false;
   let searchRequestId = 0;
   let hasSelectedPlace = false;
+  // The typing search still in flight, so Enter can wait on it instead of starting another
+  let pendingSearch = null;
+
+  const runSearch = (query) => {
+    if (pendingSearch && pendingSearch.query === query) return pendingSearch.promise;
+    const promise = searchAddresses(query);
+    pendingSearch = { query, promise };
+    promise.finally(() => {
+      if (pendingSearch && pendingSearch.promise === promise) pendingSearch = null;
+    });
+    return promise;
+  };
 
   const showDropdown = () => {
     if (hasSelectedPlace || currentResults.length === 0) return;
@@ -1880,8 +1830,17 @@ function setupAutocomplete(inputId, resultsId, onSelect) {
 
       const query = input.value.trim();
       if (query.length >= 2) {
+        // A strong match from the built-in list needs no network round-trip
+        const topLocal = searchLocalPlaces(query)[0];
+        if (topLocal && topLocal.score >= STRONG_LOCAL_SCORE) {
+          selectItemData(topLocal);
+          return;
+        }
+
         const thisReqId = ++searchRequestId;
-        const results = await searchAddresses(query);
+        if (inputRow) inputRow.classList.add('is-searching');
+        showToast('Searching…');
+        const results = await runSearch(query);
         if (thisReqId === searchRequestId && !hasSelectedPlace) {
           if (results && results.length > 0) {
             selectItemData(results[0]);
@@ -1892,6 +1851,7 @@ function setupAutocomplete(inputId, resultsId, onSelect) {
         }
       }
     } finally {
+      if (inputRow) inputRow.classList.remove('is-searching');
       setTimeout(() => { isCommitting = false; }, 300);
     }
   };
@@ -1966,7 +1926,10 @@ function setupAutocomplete(inputId, resultsId, onSelect) {
 
     debounceTimeout = setTimeout(async () => {
       const thisReqId = ++searchRequestId;
-      const results = await searchAddresses(query);
+      // Show built-in matches straight away; online results replace them when they arrive
+      const localResults = searchLocalPlaces(query).slice(0, 6);
+      if (localResults.length > 0) renderResults(localResults);
+      const results = await runSearch(query);
       if (thisReqId === searchRequestId && !hasSelectedPlace) {
         renderResults(results);
       }
@@ -2084,38 +2047,6 @@ if (footWords || footNum) {
 renderTierStrips(tier.id);
 }
 
-function populateSidebarFuelTiers() {
-  const select = document.getElementById('sidebar-fuel-tier-select');
-  if (!select) return;
-  select.innerHTML = '';
-  const cur = state.config.currency || '₱';
-
-  FUEL_TIERS.forEach(tier => {
-    const opt = document.createElement('option');
-    opt.value = String(tier.id);
-    opt.textContent = `${tier.name}: ${cur}${tier.fuelMin.toFixed(2)}–${cur}${tier.fuelMax.toFixed(2)}/L`;
-    select.appendChild(opt);
-  });
-
-  syncSidebarFuelTier();
-}
-
-function syncSidebarFuelTier() {
-  const cfg = state.config;
-  const cur = cfg.currency || '₱';
-  const select = document.getElementById('sidebar-fuel-tier-select');
-  const activeId = cfg.selectedTier || 1;
-  if (select) {
-    select.value = String(activeId);
-  }
-
-  const tier = getActiveTier(activeId);
-  const baseEl = document.getElementById('sidebar-tier-base');
-  const extraEl = document.getElementById('sidebar-tier-extra');
-  if (baseEl) baseEl.textContent = `Base: ${cur}${tier.baseFare.toFixed(2)} (0–${tier.baseDistance.toFixed(1)} km)`;
-  if (extraEl) extraEl.textContent = `+${cur}${tier.ratePerKm.toFixed(2)}/km`;
-}
-
 function populateSettingsForm() {
   const cfg = state.config;
   const tierSelect = document.getElementById('cfg-fuel-tier');
@@ -2123,7 +2054,6 @@ function populateSettingsForm() {
     tierSelect.value = String(cfg.selectedTier || 1);
   }
   updateTierPreview(cfg.selectedTier || 1);
-  syncSidebarFuelTier();
 }
 
 function showToast(message) {
@@ -2153,7 +2083,6 @@ return R * c;
 window.addEventListener('DOMContentLoaded', () => {
 loadConfig();
 updateUIConfigDisplays();
-populateSidebarFuelTiers();
 populateSettingsForm();
 recalculateFare();
 initMap();
