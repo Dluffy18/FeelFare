@@ -3,7 +3,7 @@
  * Provides offline caching, offline app shell, and tile caching.
  */
 
-const CACHE_NAME = 'feelfare-cache-v37';
+const CACHE_NAME = 'feelfare-cache-v41';
 const TILE_CACHE_NAME = 'calfair-tiles-v1';
 
 const STATIC_ASSETS = [
@@ -14,6 +14,7 @@ const STATIC_ASSETS = [
   './tariff-config.js',
   './offline-route.js',
   './roads.json',
+  './places.json',
   './manifest.json',
   './assets/icon.svg',
   './assets/city-of-mati-logo.png',

@@ -981,6 +981,30 @@ const MATI_LOCAL_PLACES = [
   { name: 'Barangay Tamisan', address: 'Tamisan, Mati, Davao Oriental', lat: 6.84790, lng: 126.29839, tags: ['tamisan'] }
 ];
 
+// Every named place inside the City of Mati from OpenStreetMap (places.json, built by
+// scratch/build-places.js), so anything labelled on the map can be found instantly and offline
+let OSM_PLACES = [];
+
+async function loadOsmPlaces() {
+  try {
+    const res = await fetch('places.json');
+    if (!res.ok) return;
+    const data = await res.json();
+    OSM_PLACES = (data.places || []).map(([name, lat, lng, kind, area]) => ({
+      name,
+      address: `${area ? area + ', ' : ''}Mati, Davao Oriental`,
+      lat,
+      lng,
+      kind,
+      tags: [],
+      osm: true
+    }));
+    searchCache.clear();
+  } catch (err) {
+    console.warn('Could not load places.json; search uses the built-in list and online services:', err);
+  }
+}
+
 function hasWordBoundaryMatch(text, word) {
   if (!text || !word) return false;
   const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -988,88 +1012,113 @@ function hasWordBoundaryMatch(text, word) {
   return rx.test(text);
 }
 
+// True when a and b differ by at most one letter (added, removed, changed or two swapped)
+function isOneEditApart(a, b) {
+  if (Math.abs(a.length - b.length) > 1) return false;
+  if (a.length === b.length) {
+    const diff = [];
+    for (let k = 0; k < a.length; k++) if (a[k] !== b[k]) diff.push(k);
+    if (diff.length === 2 && diff[1] === diff[0] + 1 &&
+        a[diff[0]] === b[diff[1]] && a[diff[1]] === b[diff[0]]) return true;
+  }
+  let i = 0, j = 0, edits = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { i++; j++; continue; }
+    if (++edits > 1) return false;
+    if (a.length > b.length) i++;
+    else if (a.length < b.length) j++;
+    else { i++; j++; }
+  }
+  return edits + (a.length - i) + (b.length - j) <= 1;
+}
+
+// How many typed words (2+ letters) appear in the text: as the start of a word,
+// or for 6+ letter words with one typo (so "dahikan" still finds "Dahican")
+function matchesQuery(text, query) {
+  // Ignore accents so "dona" matches "Doña"
+  const plain = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const words = plain(query).trim().split(/\s+/).filter(w => w.length > 1);
+  const lower = plain(text);
+  const textWords = lower.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  return words.filter(w =>
+    hasWordBoundaryMatch(lower, w) ||
+    (w.length >= 6 && textWords.some(t => isOneEditApart(w, t) || (t.length > w.length && isOneEditApart(w, t.slice(0, w.length)))))
+  ).length;
+}
+
+// Lowercase, no accents, punctuation as spaces: "Doña Rosa-II" → "dona rosa ii"
+function normalizeText(s) {
+  return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+}
+
+// How closely a place matches the input, on one scale for every source (built-in, map list, online).
+// The best name match wins; no source is favoured.
+//   1000 exact name · 900 name starts with input · 800 exact alias · 700 every word starts a word in the name
+//   600 alias starts with input, or every word in name + aliases · 400 every word in the name with a typo allowed
+//   200 every word found only via the address · 100–180 only some words match · 0 no match
+// Within a tier: words in the same order as the name rank higher, then shorter names (less extra text).
+function relevanceScore(name, aliases, address, query) {
+  const q = normalizeText(query);
+  const words = q.split(' ').filter(w => w.length > 1);
+  if (!q || words.length === 0) return 0;
+  const n = normalizeText(name);
+  const al = (aliases || []).map(normalizeText);
+  const hasWord = (text, w) => (' ' + text).includes(' ' + w);
+  const inName = words.every(w => hasWord(n, w));
+
+  let score;
+  if (n === q) score = 1000;
+  else if (n.startsWith(q)) score = 900;
+  else if (al.includes(q)) score = 800;
+  else if (inName) score = 700;
+  else if (al.some(a => a.startsWith(q)) || words.every(w => hasWord(n, w) || al.some(a => hasWord(a, w)))) score = 600;
+  else if (matchesQuery(`${name} ${(aliases || []).join(' ')}`, query) === words.length) score = 400;
+  else if (matchesQuery(`${name} ${(aliases || []).join(' ')} ${address}`, query) === words.length) score = 200;
+  else {
+    // Only some words match: more words, and words in the name rather than the address, rank higher (100–180)
+    const inNameCount = matchesQuery(`${name} ${(aliases || []).join(' ')}`, query);
+    const anyCount = matchesQuery(`${name} ${(aliases || []).join(' ')} ${address}`, query);
+    if (anyCount === 0) return 0;
+    score = 100 + 60 * inNameCount / words.length + 20 * anyCount / words.length;
+  }
+
+  if (inName && words.length > 1) {
+    const positions = words.map(w => (' ' + n).indexOf(' ' + w));
+    if (positions.every((p, i) => i === 0 || p > positions[i - 1])) score += 30;
+  }
+  return score - Math.min(n.length, 200) / 10;
+}
+
+// Every typed word matches, so Enter can safely jump to this suggestion
+function isFullMatch(item, query) {
+  const words = (query || '').trim().toLowerCase().split(/\s+/).filter(w => w.length > 1);
+  return words.length > 0 && matchesQuery(item.matchText || item.label, query) === words.length;
+}
+
 // Instant search of the curated Mati City directory with multi-tier relevance scoring (no network)
 function searchLocalPlaces(query) {
   if (!query || query.trim().length < 2) return [];
-  const cleanQ = query.trim().toLowerCase();
-  const queryWords = cleanQ.split(/\s+/).filter(w => w.length > 1);
   const scoredLocalCandidates = [];
 
-  MATI_LOCAL_PLACES.forEach(place => {
-    let score = 0;
+  [...MATI_LOCAL_PLACES, ...OSM_PLACES].forEach(place => {
     const nameLower = place.name.toLowerCase();
     const addrLower = place.address.toLowerCase();
     const tags = place.tags || [];
+    const score = relevanceScore(place.name, tags, place.address, query);
 
-    // A. Exact / Prefix Match on Place Name
-    if (nameLower === cleanQ) {
-      score += 1200;
-    } else if (nameLower.startsWith(cleanQ)) {
-      score += 700;
-    } else if (hasWordBoundaryMatch(nameLower, cleanQ)) {
-      score += 400;
-    }
-
-    // B. Exact / Prefix Match on Aliases / Tags (e.g. "provincial hospital", "dopmc", "camillus", "don luis", "doreco")
-    if (tags.length > 0) {
-      if (tags.some(t => t === cleanQ)) {
-        score += 1200;
-      } else if (tags.some(t => t.startsWith(cleanQ))) {
-        score += 500;
-      } else if (tags.some(t => cleanQ.startsWith(t))) {
-        score += 350;
-      } else if (tags.some(t => hasWordBoundaryMatch(t, cleanQ))) {
-        score += 200;
-      }
-    }
-
-    // C. Multi-Word Token Coverage (Word-boundary matching to prevent false positives like 'don' matching 'libudon')
-    if (queryWords.length > 0) {
-      let matchedTokens = 0;
-      queryWords.forEach(word => {
-        if (hasWordBoundaryMatch(nameLower, word)) {
-          matchedTokens++;
-          score += 90;
-        } else if (tags.some(t => hasWordBoundaryMatch(t, word))) {
-          matchedTokens++;
-          score += 50;
-        } else if (hasWordBoundaryMatch(addrLower, word)) {
-          score += 15;
-        }
-      });
-
-      // Token coverage rule:
-      // If user typed 2 or more words (e.g. "don luis village"),
-      // a candidate that only matches 1 isolated word (e.g. only "don") must not get high score.
-      if (queryWords.length >= 2) {
-        const coverageRatio = matchedTokens / queryWords.length;
-        if (matchedTokens < 2 && coverageRatio < 0.5) {
-          // Penalize partial single-token matches for multi-word queries
-          score = Math.max(0, score - 80);
-        } else if (matchedTokens === queryWords.length) {
-          // Bonus when all searched words appear in the place's name or tags
-          score += 450;
-        } else {
-          score += matchedTokens * 60;
-        }
-      } else if (matchedTokens === 1) {
-        score += 50;
-      }
-    }
-
-    // D. Address word-boundary fallback
-    if (hasWordBoundaryMatch(addrLower, cleanQ)) {
-      score += 60;
-    }
-
-    if (score >= 40) {
+    // Any tier from "some words match" (100, minus the small length tie-breaker) up
+    if (score > 50) {
       // Build clear, informative label showing Name first, then address
       const fullLabel = addrLower.startsWith(nameLower)
         ? place.address
         : `${place.name}, ${place.address}`;
 
       scoredLocalCandidates.push({
+        name: place.name,
+        source: place.osm ? 'map' : 'builtin',
         label: fullLabel,
+        matchText: `${place.name} ${place.address} ${tags.join(' ')}`,
         lat: place.lat,
         lng: place.lng,
         score: score
@@ -1077,13 +1126,30 @@ function searchLocalPlaces(query) {
     }
   });
 
-  // Sort local matches strictly by relevance score descending
+  // Sort local matches strictly by relevance score descending, dropping map copies of hand-picked places
   scoredLocalCandidates.sort((a, b) => b.score - a.score);
-  return scoredLocalCandidates;
+  const unique = [];
+  scoredLocalCandidates.forEach(item => {
+    if (!unique.some(u => isSamePlace(u, item))) unique.push(item);
+  });
+  return unique;
 }
 
-// A local match this strong (exact or prefix name/tag, or every typed word) is taken on Enter without waiting for the network
-const STRONG_LOCAL_SCORE = 400;
+// Same place listed twice: identical label; the same name within ~1 km; or, from two different
+// sources (built-in list, map list, online), one name containing the other within ~150 m
+// (e.g. "Dahican" and "Barangay Dahican"). Neighbours with different names stay separate.
+function isSamePlace(a, b) {
+  if (a.label.toLowerCase() === b.label.toLowerCase()) return true;
+  const dist = Math.hypot(a.lat - b.lat, a.lng - b.lng);
+  const na = normalizeText(a.name || a.label.split(',')[0]);
+  const nb = normalizeText(b.name || b.label.split(',')[0]);
+  if (na === nb) return dist < 0.01;
+  return a.source !== b.source && dist < 0.0015 && (na.includes(nb) || nb.includes(na));
+}
+
+// A local match this strong (exact name, name starting with the input, exact alias, or every typed word in the name)
+// is taken on Enter without waiting for the network
+const STRONG_LOCAL_SCORE = 700;
 
 // Recent search results for this session, so repeating a query is instant
 const searchCache = new Map();
@@ -1093,7 +1159,6 @@ async function searchAddresses(query) {
   if (!query || query.trim().length < 2) return [];
   const cleanQ = query.trim().toLowerCase();
   if (searchCache.has(cleanQ)) return searchCache.get(cleanQ);
-  const queryWords = cleanQ.split(/\s+/).filter(w => w.length > 1);
 
   // 1. Instant local search
   const localMatches = searchLocalPlaces(query);
@@ -1160,31 +1225,11 @@ async function searchAddresses(query) {
               label += ', Mati, Davao Oriental';
             }
 
-            // Calculate API relevance score
-            let apiScore = 150;
-            const lowerName = rawName.toLowerCase();
-            const lowerLabel = label.toLowerCase();
-            if (lowerName === cleanQ) {
-              apiScore = 1200;
-            } else if (lowerName.startsWith(cleanQ)) {
-              apiScore = 800;
-            } else if (lowerName.includes(cleanQ)) {
-              apiScore = 600;
-            } else if (lowerLabel.includes(cleanQ)) {
-              apiScore = 400;
-            } else {
-              let matchedApiWords = 0;
-              queryWords.forEach(w => {
-                if (hasWordBoundaryMatch(lowerLabel, w)) matchedApiWords++;
-              });
-              if (queryWords.length > 0 && matchedApiWords === queryWords.length) {
-                apiScore = 500;
-              } else if (matchedApiWords >= 2) {
-                apiScore = 250 + (matchedApiWords * 40);
-              }
-            }
+            const apiScore = relevanceScore(rawName, [], label, query);
 
             return {
+              name: rawName,
+              source: 'online',
               label: label,
               lat: f.geometry.coordinates[1],
               lng: f.geometry.coordinates[0],
@@ -1198,8 +1243,8 @@ async function searchAddresses(query) {
     console.warn('Photon bounded search error, falling back to Nominatim:', err);
   }
 
-  // 3. Fallback to Nominatim strictly bounded to Mati if Photon returned no results
-  if (apiMatches.length === 0 && localMatches.length === 0) {
+  // 3. Fallback to Nominatim strictly bounded to Mati whenever Photon failed or found nothing
+  if (apiMatches.length === 0) {
     try {
       const nomUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&viewbox=${MATI_BOUNDS.minLng},${MATI_BOUNDS.maxLat},${MATI_BOUNDS.maxLng},${MATI_BOUNDS.minLat}&bounded=1&countrycodes=ph&limit=8`;
       const res = await fetchWithTimeout(nomUrl, 4000);
@@ -1216,10 +1261,13 @@ async function searchAddresses(query) {
             return true;
           })
           .map(item => ({
+            name: item.display_name.split(',')[0],
+            source: 'online',
             label: item.display_name.split(',').slice(0, 3).join(', ') + ', Mati, Davao Oriental',
+            matchText: item.display_name,
             lat: parseFloat(item.lat),
             lng: parseFloat(item.lon),
-            score: 100
+            score: relevanceScore(item.display_name.split(',')[0], [], item.display_name, query)
           }));
       }
     } catch (e2) {
@@ -1229,6 +1277,9 @@ async function searchAddresses(query) {
   }
 
   // Combine results and sort strictly by relevance score descending
+  // Online services return loose matches; keep only places that share at least one typed word
+  apiMatches = apiMatches.filter(item => matchesQuery(item.matchText || item.label, query) > 0);
+
   const combined = [...localMatches, ...apiMatches].filter(item => {
     const text = (item.label || '').toLowerCase();
     if (text.includes('tarragona')) return false;
@@ -1239,11 +1290,7 @@ async function searchAddresses(query) {
 
   const unique = [];
   combined.forEach(item => {
-    const isDup = unique.some(u => {
-      const dist = Math.hypot(u.lat - item.lat, u.lng - item.lng);
-      return dist < 0.001 || u.label.toLowerCase() === item.label.toLowerCase();
-    });
-    if (!isDup) unique.push(item);
+    if (!unique.some(u => isSamePlace(u, item))) unique.push(item);
   });
 
   const results = unique.slice(0, 6);
@@ -1815,24 +1862,38 @@ function setupAutocomplete(inputId, resultsId, onSelect) {
     handlePostSelection();
   };
 
+  // Keep the list open so the user chooses (no row pre-selected, so a repeated Enter can't pick a wrong place)
+  const askToPickFromList = () => {
+    showToast('No exact match. Pick a place from the list.');
+  };
+
   const commitSelection = async () => {
     if (isCommitting) return;
     isCommitting = true;
     clearTimeout(debounceTimeout);
 
     try {
+      const query = input.value.trim();
       const isDropdownVisible = dropdown.style.display === 'block';
       if (isDropdownVisible && currentResults.length > 0) {
-        const targetIndex = activeIndex >= 0 ? activeIndex : 0;
-        selectItemData(currentResults[targetIndex]);
+        // A row picked with the arrow keys is an explicit choice
+        if (activeIndex >= 0) {
+          selectItemData(currentResults[activeIndex]);
+          return;
+        }
+        const firstMatch = currentResults.find(item => isFullMatch(item, query));
+        if (firstMatch) {
+          selectItemData(firstMatch);
+        } else {
+          askToPickFromList();
+        }
         return;
       }
 
-      const query = input.value.trim();
       if (query.length >= 2) {
         // A strong match from the built-in list needs no network round-trip
         const topLocal = searchLocalPlaces(query)[0];
-        if (topLocal && topLocal.score >= STRONG_LOCAL_SCORE) {
+        if (topLocal && topLocal.score >= STRONG_LOCAL_SCORE && isFullMatch(topLocal, query)) {
           selectItemData(topLocal);
           return;
         }
@@ -1842,8 +1903,13 @@ function setupAutocomplete(inputId, resultsId, onSelect) {
         showToast('Searching…');
         const results = await runSearch(query);
         if (thisReqId === searchRequestId && !hasSelectedPlace) {
-          if (results && results.length > 0) {
-            selectItemData(results[0]);
+          const firstMatch = (results || []).find(item => isFullMatch(item, query));
+          if (firstMatch) {
+            selectItemData(firstMatch);
+          } else if (results && results.length > 0) {
+            // Nothing matches every typed word: show the closest places instead of guessing
+            renderResults(results);
+            askToPickFromList();
           } else {
             showToast('No matching places found in City of Mati.');
             hideDropdown();
@@ -1869,7 +1935,8 @@ function setupAutocomplete(inputId, resultsId, onSelect) {
   };
 
   const renderResults = (results) => {
-    if (hasSelectedPlace) {
+    // Nothing typed (erased, or cleared with ✕): never show suggestions
+    if (hasSelectedPlace || input.value.trim().length < 2) {
       hideDropdown();
       return;
     }
@@ -1920,6 +1987,8 @@ function setupAutocomplete(inputId, resultsId, onSelect) {
     const query = input.value.trim();
 
     if (query.length < 2) {
+      // Ignore any search still waiting on the network, so it can't reopen the list
+      searchRequestId++;
       hideDropdown();
       return;
     }
@@ -2130,4 +2199,5 @@ setupEventListeners();
 // Warm the saved road data while online so offline routing works later
 window.addEventListener('load', () => {
   setTimeout(() => { window.OfflineRouter?.load('roads.json').catch(() => {}); }, 3000);
+  loadOsmPlaces();
 });
