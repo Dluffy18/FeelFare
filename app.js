@@ -1284,6 +1284,8 @@ async function searchAddresses(query) {
     const text = (item.label || '').toLowerCase();
     if (text.includes('tarragona')) return false;
     if (text.includes('doreco') && (text.includes('tamia') || text.includes('guadalupe'))) return false;
+    // The Tamia DORECO pin also comes from places.json labelled by barangay, so match it by location too
+    if (text.includes('doreco') && Math.abs(item.lat - 6.95781) < 0.003 && Math.abs(item.lng - 126.28616) < 0.003) return false;
     return true;
   });
   combined.sort((a, b) => (b.score || 0) - (a.score || 0));
